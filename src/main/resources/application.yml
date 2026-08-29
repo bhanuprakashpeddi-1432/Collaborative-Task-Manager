@@ -1,0 +1,31 @@
+server:
+  port: 8080
+  error:
+    include-message: always
+    include-binding-errors: always
+
+spring:
+  application:
+    name: workcollab
+  datasource:
+    url: jdbc:postgresql://localhost:5432/workcollab
+    username: root
+    password: password
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update # Using update for local dev, schema.sql is provided for reference
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  sql:
+    init:
+      mode: always # This will run schema.sql automatically if it exists
+
+app:
+  jwt:
+    # 256-bit secret key base64 encoded
+    secret: MzY2Nzg5YjE1NzdkZmQwYWI4YTdlMDhiMmIyOGVmMzg0MzU4ZjQ5NmZlMzM2YzEwZDM0ZDYwMTBhMjg4ZmM0Zg==
+    expiration-ms: 86400000 # 24 hours
