@@ -47,6 +47,16 @@ public class GlobalExceptionHandler {
         return problemDetail;
     }
 
+    @ExceptionHandler(TaskOptimisticLockingException.class)
+    public ProblemDetail handleTaskOptimisticLockingException(TaskOptimisticLockingException ex) {
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        problemDetail.setType(URI.create("about:blank"));
+        problemDetail.setTitle("Conflict");
+        problemDetail.setProperty("staleVersion", ex.getStaleVersion());
+        problemDetail.setProperty("currentVersion", ex.getCurrentVersion());
+        return problemDetail;
+    }
+
     @ExceptionHandler(OptimisticLockingFailureException.class)
     public ProblemDetail handleOptimisticLockingFailureException(OptimisticLockingFailureException ex) {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, "The resource was updated by another user. Please reload and try again.");
