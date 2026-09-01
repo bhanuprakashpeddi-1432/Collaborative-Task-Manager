@@ -9,6 +9,8 @@ import com.workcollab.entity.Priority;
 import com.workcollab.entity.Task;
 import com.workcollab.entity.TaskList;
 import com.workcollab.entity.User;
+import com.workcollab.event.CollaborationEvent;
+import com.workcollab.event.CollaborationEventType;
 import com.workcollab.event.TaskActivityEvent;
 import com.workcollab.exception.ResourceNotFoundException;
 import com.workcollab.exception.TaskOptimisticLockingException;
@@ -28,6 +30,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -70,7 +73,10 @@ public class TaskServiceImpl implements TaskService {
 
         publishActivity(savedTask.getId(), userId, "TASK_CREATED", "{}");
 
-        return mapToDto(savedTask);
+        TaskDto dto = mapToDto(savedTask);
+        publishCollaborationEvent(savedTask, CollaborationEventType.TASK_CREATED, dto, userId);
+
+        return dto;
     }
 
     @Override
@@ -97,7 +103,9 @@ public class TaskServiceImpl implements TaskService {
         try {
             Task updatedTask = taskRepository.saveAndFlush(task);
             publishActivity(updatedTask.getId(), userId, "TASK_UPDATED", "{}");
-            return mapToDto(updatedTask);
+            TaskDto dto = mapToDto(updatedTask);
+            publishCollaborationEvent(updatedTask, CollaborationEventType.TASK_UPDATED, dto, userId);
+            return dto;
         } catch (OptimisticLockingFailureException e) {
             // Fetch current state to report the actual version
             Task currentTask = taskRepository.findById(taskId).orElseThrow();
@@ -141,7 +149,9 @@ public class TaskServiceImpl implements TaskService {
             Task updatedTask = taskRepository.saveAndFlush(task);
             publishActivity(updatedTask.getId(), userId, "TASK_MOVED", 
                     String.format("{\"targetListId\": \"%s\", \"position\": %f}", request.getTargetListId(), newPos));
-            return mapToDto(updatedTask);
+            TaskDto dto = mapToDto(updatedTask);
+            publishCollaborationEvent(updatedTask, CollaborationEventType.TASK_MOVED, dto, userId);
+            return dto;
         } catch (OptimisticLockingFailureException e) {
             Task currentTask = taskRepository.findById(taskId).orElseThrow();
             throw new TaskOptimisticLockingException("Task was modified concurrently", currentTask.getVersion(), request.getVersion());
@@ -153,11 +163,27 @@ public class TaskServiceImpl implements TaskService {
     public void deleteTask(UUID taskId, UUID userId) {
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
-        
+
+        // Capture routing metadata before deletion — needed for the WebSocket broadcast
+        UUID boardId = task.getList().getBoard().getId();
+        UUID workspaceId = task.getList().getBoard().getWorkspace().getId();
+        UUID listId = task.getList().getId();
+
         taskRepository.delete(task);
-        // We cannot publish a task activity if the task is deleted (since it cascades or raises FK exception), 
-        // unless we decouple the activity from the task, but our schema binds it. 
-        // For now, no activity event for deletion based on current schema.
+
+        // Publish collaboration event with a lightweight delete summary.
+        // Task activity logging is skipped because the FK cascades on delete.
+        Map<String, Object> deletePayload = Map.of(
+                "taskId", taskId,
+                "listId", listId
+        );
+        eventPublisher.publishEvent(CollaborationEvent.builder()
+                .workspaceId(workspaceId)
+                .boardId(boardId)
+                .eventType(CollaborationEventType.TASK_DELETED)
+                .payload(deletePayload)
+                .triggeredBy(userId)
+                .build());
     }
 
     @Override
@@ -193,6 +219,25 @@ public class TaskServiceImpl implements TaskService {
                 .userId(userId)
                 .actionType(action)
                 .detailsJson(jsonDetails)
+                .build());
+    }
+
+    /**
+     * Publishes a {@link CollaborationEvent} for real-time WebSocket broadcast.
+     * The event is consumed by {@link com.workcollab.event.CollaborationEventListener}
+     * only after the enclosing transaction commits.
+     */
+    private void publishCollaborationEvent(Task task, CollaborationEventType eventType,
+                                           Object payload, UUID userId) {
+        UUID boardId = task.getList().getBoard().getId();
+        UUID workspaceId = task.getList().getBoard().getWorkspace().getId();
+
+        eventPublisher.publishEvent(CollaborationEvent.builder()
+                .workspaceId(workspaceId)
+                .boardId(boardId)
+                .eventType(eventType)
+                .payload(payload)
+                .triggeredBy(userId)
                 .build());
     }
 

@@ -23,9 +23,18 @@ spring:
   sql:
     init:
       mode: always # This will run schema.sql automatically if it exists
+  data:
+    redis:
+      host: localhost
+      port: 6379
 
 app:
   jwt:
     # 256-bit secret key base64 encoded
     secret: MzY2Nzg5YjE1NzdkZmQwYWI4YTdlMDhiMmIyOGVmMzg0MzU4ZjQ5NmZlMzM2YzEwZDM0ZDYwMTBhMjg4ZmM0Zg==
     expiration-ms: 86400000 # 24 hours
+  websocket:
+    allowed-origins: "*"
+  presence:
+    heartbeat-interval-seconds: 30
+    expiry-seconds: 45
