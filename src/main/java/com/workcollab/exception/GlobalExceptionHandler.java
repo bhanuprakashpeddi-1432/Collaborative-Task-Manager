@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -19,7 +20,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ProblemDetail handleValidationExceptions(MethodArgumentNotValidException ex) {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Validation failed for one or more fields.");
-        problemDetail.setType(URI.create("about:blank"));
+        problemDetail.setType(Objects.requireNonNull(URI.create("about:blank")));
         problemDetail.setTitle("Bad Request");
 
         Map<String, String> errors = new HashMap<>();
@@ -34,7 +35,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ResourceNotFoundException.class)
     public ProblemDetail handleResourceNotFoundException(ResourceNotFoundException ex) {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
-        problemDetail.setType(URI.create("about:blank"));
+        problemDetail.setType(Objects.requireNonNull(URI.create("about:blank")));
         problemDetail.setTitle("Not Found");
         return problemDetail;
     }
@@ -42,7 +43,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AccessDeniedException.class)
     public ProblemDetail handleAccessDeniedException(AccessDeniedException ex) {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, "You do not have permission to access this resource.");
-        problemDetail.setType(URI.create("about:blank"));
+        problemDetail.setType(Objects.requireNonNull(URI.create("about:blank")));
         problemDetail.setTitle("Forbidden");
         return problemDetail;
     }
@@ -50,7 +51,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(TaskOptimisticLockingException.class)
     public ProblemDetail handleTaskOptimisticLockingException(TaskOptimisticLockingException ex) {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
-        problemDetail.setType(URI.create("about:blank"));
+        problemDetail.setType(Objects.requireNonNull(URI.create("about:blank")));
         problemDetail.setTitle("Conflict");
         problemDetail.setProperty("staleVersion", ex.getStaleVersion());
         problemDetail.setProperty("currentVersion", ex.getCurrentVersion());
@@ -60,7 +61,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(OptimisticLockingFailureException.class)
     public ProblemDetail handleOptimisticLockingFailureException(OptimisticLockingFailureException ex) {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, "The resource was updated by another user. Please reload and try again.");
-        problemDetail.setType(URI.create("about:blank"));
+        problemDetail.setType(Objects.requireNonNull(URI.create("about:blank")));
         problemDetail.setTitle("Conflict");
         return problemDetail;
     }
@@ -68,7 +69,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ProblemDetail handleGenericException(Exception ex) {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred.");
-        problemDetail.setType(URI.create("about:blank"));
+        problemDetail.setType(Objects.requireNonNull(URI.create("about:blank")));
         problemDetail.setTitle("Internal Server Error");
         return problemDetail;
     }

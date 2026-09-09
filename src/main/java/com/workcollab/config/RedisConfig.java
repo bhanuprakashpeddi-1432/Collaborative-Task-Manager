@@ -1,5 +1,7 @@
 package com.workcollab.config;
 
+import org.springframework.lang.NonNull;
+
 import com.workcollab.collaboration.RedisCollaborationSubscriber;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -46,15 +48,15 @@ public class RedisConfig {
     }
 
     @Bean
-    public MessageListenerAdapter collaborationListenerAdapter(RedisCollaborationSubscriber subscriber) {
+    public MessageListenerAdapter collaborationListenerAdapter(@NonNull RedisCollaborationSubscriber subscriber) {
         return new MessageListenerAdapter(subscriber, "onMessage");
     }
 
     @Bean
     public RedisMessageListenerContainer redisMessageListenerContainer(
-            RedisConnectionFactory connectionFactory,
-            MessageListenerAdapter collaborationListenerAdapter,
-            ChannelTopic collaborationTopic) {
+            @NonNull RedisConnectionFactory connectionFactory,
+            @NonNull MessageListenerAdapter collaborationListenerAdapter,
+            @NonNull ChannelTopic collaborationTopic) {
 
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);

@@ -19,6 +19,8 @@ public class TaskFilterRequest {
     private ZonedDateTime dueDateStart;
     private ZonedDateTime dueDateEnd;
     private String searchString;
+    @Builder.Default
     private int page = 0;
+    @Builder.Default
     private int size = 20;
 }

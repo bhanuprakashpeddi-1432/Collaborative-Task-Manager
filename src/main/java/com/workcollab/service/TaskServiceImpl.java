@@ -31,6 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -45,15 +46,15 @@ public class TaskServiceImpl implements TaskService {
     @Override
     @Transactional
     public TaskDto createTask(UUID boardId, TaskCreateRequest request, UUID userId) {
-        TaskList list = taskListRepository.findById(request.getListId())
+        TaskList list = taskListRepository.findById(Objects.requireNonNull(request.getListId()))
                 .orElseThrow(() -> new ResourceNotFoundException("List not found"));
         
         if (!list.getBoard().getId().equals(boardId)) {
             throw new IllegalArgumentException("List does not belong to the specified board");
         }
 
-        User creator = userRepository.getReferenceById(userId);
-        User assignee = request.getAssignedToId() != null ? userRepository.getReferenceById(request.getAssignedToId()) : null;
+        User creator = userRepository.getReferenceById(Objects.requireNonNull(userId));
+        User assignee = request.getAssignedToId() != null ? userRepository.getReferenceById(Objects.requireNonNull(request.getAssignedToId())) : null;
 
         Double position = generateInitialPosition(list.getId());
 
@@ -69,7 +70,7 @@ public class TaskServiceImpl implements TaskService {
                 .assignedTo(assignee)
                 .build();
 
-        Task savedTask = taskRepository.save(task);
+        Task savedTask = taskRepository.save(Objects.requireNonNull(task));
 
         publishActivity(savedTask.getId(), userId, "TASK_CREATED", "{}");
 
@@ -82,7 +83,7 @@ public class TaskServiceImpl implements TaskService {
     @Override
     @Transactional
     public TaskDto updateTask(UUID taskId, TaskUpdateRequest request, UUID userId) {
-        Task task = taskRepository.findById(taskId)
+        Task task = taskRepository.findById(Objects.requireNonNull(taskId))
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
 
         if (!task.getVersion().equals(request.getVersion())) {
@@ -95,7 +96,7 @@ public class TaskServiceImpl implements TaskService {
         task.setDueDate(request.getDueDate());
         
         if (request.getAssignedToId() != null) {
-            task.setAssignedTo(userRepository.getReferenceById(request.getAssignedToId()));
+            task.setAssignedTo(userRepository.getReferenceById(Objects.requireNonNull(request.getAssignedToId())));
         } else {
             task.setAssignedTo(null);
         }
@@ -108,7 +109,7 @@ public class TaskServiceImpl implements TaskService {
             return dto;
         } catch (OptimisticLockingFailureException e) {
             // Fetch current state to report the actual version
-            Task currentTask = taskRepository.findById(taskId).orElseThrow();
+            Task currentTask = taskRepository.findById(Objects.requireNonNull(taskId)).orElseThrow();
             throw new TaskOptimisticLockingException("Task was modified concurrently", currentTask.getVersion(), request.getVersion());
         }
     }
@@ -116,7 +117,7 @@ public class TaskServiceImpl implements TaskService {
     @Override
     @Transactional
     public TaskDto moveTask(UUID taskId, TaskMoveRequest request, UUID userId) {
-        Task task = taskRepository.findById(taskId)
+        Task task = taskRepository.findById(Objects.requireNonNull(taskId))
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
 
         if (!task.getVersion().equals(request.getVersion())) {
@@ -124,7 +125,7 @@ public class TaskServiceImpl implements TaskService {
         }
 
         if (!task.getList().getId().equals(request.getTargetListId())) {
-            TaskList targetList = taskListRepository.findById(request.getTargetListId())
+            TaskList targetList = taskListRepository.findById(Objects.requireNonNull(request.getTargetListId()))
                     .orElseThrow(() -> new ResourceNotFoundException("Target list not found"));
             task.setList(targetList);
         }
@@ -153,7 +154,7 @@ public class TaskServiceImpl implements TaskService {
             publishCollaborationEvent(updatedTask, CollaborationEventType.TASK_MOVED, dto, userId);
             return dto;
         } catch (OptimisticLockingFailureException e) {
-            Task currentTask = taskRepository.findById(taskId).orElseThrow();
+            Task currentTask = taskRepository.findById(Objects.requireNonNull(taskId)).orElseThrow();
             throw new TaskOptimisticLockingException("Task was modified concurrently", currentTask.getVersion(), request.getVersion());
         }
     }
@@ -161,7 +162,7 @@ public class TaskServiceImpl implements TaskService {
     @Override
     @Transactional
     public void deleteTask(UUID taskId, UUID userId) {
-        Task task = taskRepository.findById(taskId)
+        Task task = taskRepository.findById(Objects.requireNonNull(taskId))
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
 
         // Capture routing metadata before deletion — needed for the WebSocket broadcast
@@ -177,13 +178,13 @@ public class TaskServiceImpl implements TaskService {
                 "taskId", taskId,
                 "listId", listId
         );
-        eventPublisher.publishEvent(CollaborationEvent.builder()
+        eventPublisher.publishEvent(Objects.requireNonNull(CollaborationEvent.builder()
                 .workspaceId(workspaceId)
                 .boardId(boardId)
                 .eventType(CollaborationEventType.TASK_DELETED)
                 .payload(deletePayload)
                 .triggeredBy(userId)
-                .build());
+                .build()));
     }
 
     @Override
@@ -200,7 +201,7 @@ public class TaskServiceImpl implements TaskService {
 
         Pageable pageable = PageRequest.of(filterRequest.getPage(), filterRequest.getSize(), Sort.by("position").ascending());
         
-        Page<Task> tasks = taskRepository.findAll(spec, pageable);
+        Page<Task> tasks = taskRepository.findAll(Objects.requireNonNull(spec), pageable);
         return tasks.map(this::mapToDto);
     }
 
@@ -214,12 +215,12 @@ public class TaskServiceImpl implements TaskService {
     }
 
     private void publishActivity(UUID taskId, UUID userId, String action, String jsonDetails) {
-        eventPublisher.publishEvent(TaskActivityEvent.builder()
+        eventPublisher.publishEvent(Objects.requireNonNull(TaskActivityEvent.builder()
                 .taskId(taskId)
                 .userId(userId)
                 .actionType(action)
                 .detailsJson(jsonDetails)
-                .build());
+                .build()));
     }
 
     /**
@@ -232,13 +233,13 @@ public class TaskServiceImpl implements TaskService {
         UUID boardId = task.getList().getBoard().getId();
         UUID workspaceId = task.getList().getBoard().getWorkspace().getId();
 
-        eventPublisher.publishEvent(CollaborationEvent.builder()
+        eventPublisher.publishEvent(Objects.requireNonNull(CollaborationEvent.builder()
                 .workspaceId(workspaceId)
                 .boardId(boardId)
                 .eventType(eventType)
                 .payload(payload)
                 .triggeredBy(userId)
-                .build());
+                .build()));
     }
 
     private TaskDto mapToDto(Task task) {

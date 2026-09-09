@@ -8,9 +8,9 @@ spring:
   application:
     name: workcollab
   datasource:
-    url: jdbc:postgresql://localhost:5432/workcollab
-    username: root
-    password: password
+    url: jdbc:postgresql://localhost:5433/workcollab
+    username: workcollab
+    password: changeme
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:

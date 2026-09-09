@@ -1,25 +1,99 @@
-version: '3.8'
+# ──────────────────────────────────────────────────────────────────────────────
+# WorkCollab — Production Docker Compose
+# ──────────────────────────────────────────────────────────────────────────────
+# Usage:
+#   1. Copy .env.example to .env and fill in secrets
+#   2. docker compose up -d --build
+#   3. Access the app at http://localhost
+# ──────────────────────────────────────────────────────────────────────────────
 
 services:
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
     container_name: workcollab-db
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: workcollab
-      POSTGRES_USER: root
-      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: ${DB_NAME:-workcollab}
+      POSTGRES_USER: ${DB_USERNAME:-workcollab}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-workcollab} -d ${DB_NAME:-workcollab}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
+  # ── Redis ───────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: workcollab-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
     ports:
       - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  # ── Spring Boot Backend ─────────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: workcollab-backend
     restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-workcollab}
+      DB_USERNAME: ${DB_USERNAME:-workcollab}
+      DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET:-MzY2Nzg5YjE1NzdkZmQwYWI4YTdlMDhiMmIyOGVmMzg0MzU4ZjQ5NmZlMzM2YzEwZDM0ZDYwMTBhMjg4ZmM0Zg==}
+      JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-86400000}
+      WEBSOCKET_ALLOWED_ORIGINS: ${WEBSOCKET_ALLOWED_ORIGINS:-*}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  # ── React + NGINX Frontend ─────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: workcollab-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
 
 volumes:
   postgres_data:
+    driver: local
+  redis_data:
+    driver: local

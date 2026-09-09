@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS workspaces (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
-CREATE INDEX idx_workspaces_slug ON workspaces(slug);
+CREATE INDEX IF NOT EXISTS idx_workspaces_slug ON workspaces(slug);
 
 -- Workspace Members Table (Roles: ADMIN, MEMBER, VIEWER)
 CREATE TABLE IF NOT EXISTS workspace_members (
@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS workspace_members (
     UNIQUE(workspace_id, user_id)
 );
 
-CREATE INDEX idx_workspace_members_user ON workspace_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_workspace_members_user ON workspace_members(user_id);
 
 -- Boards Table
 CREATE TABLE IF NOT EXISTS boards (
@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS boards (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
-CREATE INDEX idx_boards_workspace ON boards(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_boards_workspace ON boards(workspace_id);
 
 -- Task Lists (Columns) Table
 CREATE TABLE IF NOT EXISTS task_lists (
@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS task_lists (
     position DOUBLE PRECISION NOT NULL
 );
 
-CREATE INDEX idx_task_lists_board ON task_lists(board_id);
+CREATE INDEX IF NOT EXISTS idx_task_lists_board ON task_lists(board_id);
 
 -- Tasks Table
 CREATE TABLE IF NOT EXISTS tasks (
@@ -72,9 +72,9 @@ CREATE TABLE IF NOT EXISTS tasks (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
-CREATE INDEX idx_tasks_list ON tasks(list_id);
-CREATE INDEX idx_tasks_assigned ON tasks(assigned_to);
-CREATE INDEX idx_tasks_due_date ON tasks(due_date);
+CREATE INDEX IF NOT EXISTS idx_tasks_list ON tasks(list_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_assigned ON tasks(assigned_to);
+CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date);
 
 -- Task Activities Table
 CREATE TABLE IF NOT EXISTS task_activities (
@@ -86,4 +86,4 @@ CREATE TABLE IF NOT EXISTS task_activities (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
-CREATE INDEX idx_task_activities_task ON task_activities(task_id);
+CREATE INDEX IF NOT EXISTS idx_task_activities_task ON task_activities(task_id);

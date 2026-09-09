@@ -12,6 +12,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+import java.util.Objects;
+
 @Component
 @RequiredArgsConstructor
 @Slf4j
@@ -28,13 +30,13 @@ public class TaskActivityEventListener {
 
         try {
             TaskActivity activity = TaskActivity.builder()
-                    .task(taskRepository.getReferenceById(event.getTaskId()))
-                    .user(event.getUserId() != null ? userRepository.getReferenceById(event.getUserId()) : null)
+                    .task(taskRepository.getReferenceById(Objects.requireNonNull(event.getTaskId())))
+                    .user(event.getUserId() != null ? userRepository.getReferenceById(Objects.requireNonNull(event.getUserId())) : null)
                     .actionType(event.getActionType())
                     .detailsJson(event.getDetailsJson())
                     .build();
 
-            taskActivityRepository.save(activity);
+            taskActivityRepository.save(Objects.requireNonNull(activity));
         } catch (Exception e) {
             log.error("Failed to save TaskActivity for event: {}", event, e);
         }

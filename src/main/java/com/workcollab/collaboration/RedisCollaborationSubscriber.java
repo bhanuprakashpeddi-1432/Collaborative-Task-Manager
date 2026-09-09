@@ -1,5 +1,8 @@
 package com.workcollab.collaboration;
 
+import org.springframework.lang.NonNull;
+import org.springframework.lang.Nullable;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.workcollab.event.CollaborationMessage;
 import lombok.RequiredArgsConstructor;
@@ -28,7 +31,7 @@ public class RedisCollaborationSubscriber implements MessageListener {
     private final ObjectMapper objectMapper;
 
     @Override
-    public void onMessage(Message message, byte[] pattern) {
+    public void onMessage(@NonNull Message message, @Nullable byte[] pattern) {
         try {
             String json = new String(message.getBody());
             CollaborationMessage collaborationMessage = objectMapper.readValue(json, CollaborationMessage.class);

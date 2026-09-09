@@ -1,0 +1,16 @@
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!.mvn/wrapper/maven-wrapper.properties
+*.log
+*.iml
+*.iws
+*.ipr
+.idea/
+.git/
+.gitignore
+.vscode/
+frontend/
+docker-compose*.yml
+Dockerfile
+.env*
+README.md

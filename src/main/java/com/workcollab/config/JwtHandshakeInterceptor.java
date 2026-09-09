@@ -1,5 +1,8 @@
 package com.workcollab.config;
 
+import org.springframework.lang.NonNull;
+import org.springframework.lang.Nullable;
+
 import com.workcollab.security.CustomUserDetailsService;
 import com.workcollab.security.JwtUtils;
 import com.workcollab.security.UserDetailsImpl;
@@ -35,8 +38,8 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
     private final CustomUserDetailsService userDetailsService;
 
     @Override
-    public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
-                                   WebSocketHandler wsHandler, Map<String, Object> attributes) {
+    public boolean beforeHandshake(@NonNull ServerHttpRequest request, @NonNull ServerHttpResponse response,
+                                   @NonNull WebSocketHandler wsHandler, @NonNull Map<String, Object> attributes) {
         if (request instanceof ServletServerHttpRequest servletRequest) {
             String token = servletRequest.getServletRequest().getParameter("token");
 
@@ -54,8 +57,8 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
     }
 
     @Override
-    public void afterHandshake(ServerHttpRequest request, ServerHttpResponse response,
-                               WebSocketHandler wsHandler, Exception exception) {
+    public void afterHandshake(@NonNull ServerHttpRequest request, @NonNull ServerHttpResponse response,
+                               @NonNull WebSocketHandler wsHandler, @Nullable Exception exception) {
         // No post-handshake processing needed
     }
 }

@@ -1,5 +1,7 @@
 package com.workcollab.config;
 
+import org.springframework.lang.NonNull;
+
 import com.workcollab.security.UserDetailsImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.Message;
@@ -28,7 +30,7 @@ import java.util.Collections;
 public class JwtChannelInterceptor implements ChannelInterceptor {
 
     @Override
-    public Message<?> preSend(Message<?> message, MessageChannel channel) {
+    public Message<?> preSend(@NonNull Message<?> message, @NonNull MessageChannel channel) {
         StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
 
         if (accessor != null && StompCommand.CONNECT.equals(accessor.getCommand())) {

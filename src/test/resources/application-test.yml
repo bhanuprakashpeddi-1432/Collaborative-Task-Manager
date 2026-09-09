@@ -1,0 +1,25 @@
+server:
+  port: 0 # Random port for tests
+
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  sql:
+    init:
+      mode: never # Schema managed by Hibernate in tests
+
+app:
+  jwt:
+    secret: dGVzdC1zZWNyZXQta2V5LXRoYXQtaXMtbG9uZy1lbm91Z2gtZm9yLWhtYWMtc2hhMjU2LWFsZ29yaXRobS1zaWduaW5n
+    expiration-ms: 86400000
+  websocket:
+    allowed-origins: "*"
+  presence:
+    heartbeat-interval-seconds: 30
+    expiry-seconds: 45
