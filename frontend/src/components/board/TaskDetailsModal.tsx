@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
-import { X, AlertTriangle, Save, Loader2 } from 'lucide-react';
+import { X, AlertTriangle, Save, Loader2, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Task } from '@/types';
 
@@ -54,8 +54,29 @@ export function TaskDetailsModal({ workspaceId, boardId, task, onClose, sendHear
     }
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      await api.delete(`/boards/${boardId}/tasks/${task.id}?workspaceId=${workspaceId}`);
+    },
+    onSuccess: () => {
+      queryClient.setQueryData<Task[]>(['tasks', boardId], (old) =>
+        old?.filter(t => t.id !== task.id)
+      );
+      onClose();
+    },
+    onError: () => {
+      alert('Failed to delete task.');
+    },
+  });
+
   const handleSave = () => {
     updateMutation.mutate();
+  };
+
+  const handleDelete = () => {
+    if (confirm('Are you sure you want to delete this task?')) {
+      deleteMutation.mutate();
+    }
   };
 
   const handleReload = async () => {
@@ -140,8 +161,18 @@ export function TaskDetailsModal({ workspaceId, boardId, task, onClose, sendHear
 
         {/* Footer */}
         <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-between items-center">
-          <div className="text-xs text-gray-500">
-            Version {task.version} • Last updated {new Date(task.updatedAt).toLocaleTimeString()}
+          <div className="flex items-center gap-3">
+            <div className="text-xs text-gray-500">
+              Version {task.version} • Last updated {new Date(task.updatedAt).toLocaleTimeString()}
+            </div>
+            <button
+              onClick={handleDelete}
+              disabled={deleteMutation.isPending}
+              className="text-gray-400 hover:text-red-600 transition-colors p-1 rounded" 
+              title="Delete task"
+            >
+              {deleteMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+            </button>
           </div>
           
           {isEditing && (

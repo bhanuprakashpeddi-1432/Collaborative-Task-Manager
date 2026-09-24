@@ -1,56 +1,88 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/api';
 
 import type { Task, TaskList, Board as BoardType } from '@/types';
 import { KanbanBoard } from '@/components/board/KanbanBoard';
 import { TaskDetailsModal } from '@/components/board/TaskDetailsModal';
 import { PresenceAvatars } from '@/components/board/PresenceAvatars';
 import { useBoardWebSocket } from '@/hooks/useBoardWebSocket';
-import { LayoutDashboard, LogOut } from 'lucide-react';
+import { LayoutDashboard, LogOut, Loader2 } from 'lucide-react';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useNavigate } from 'react-router-dom';
 
 export function Workspace() {
   const { logout, user } = useAuthStore();
   const navigate = useNavigate();
-  
-  // For simplicity, hardcoding a workspaceId and boardId or pulling from a query to start
-  // In a real app, this would come from URL params (e.g., /workspace/:wId/board/:bId)
-  const workspaceId = 'd290f1ee-6c54-4b01-90e6-d701748f0851'; // Example UUID
-  const boardId = 'e3b0c442-989b-464c-8650-123456789012';     // Example UUID
 
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
-  // Use WebSocket for real-time sync and presence
-  const { activeUsers, sendHeartbeat } = useBoardWebSocket(workspaceId, boardId);
+  // Step 1: Fetch user's workspaces
+  const { data: workspaces, isLoading: isLoadingWorkspaces } = useQuery<{ id: string; name: string; slug: string; role: string }[]>({
+    queryKey: ['workspaces'],
+    queryFn: async () => {
+      const res = await api.get('/workspaces');
+      return res.data;
+    },
+  });
 
-  // Fetch Board details and Lists
-  const { data: boardInfo, isLoading } = useQuery<{ board: BoardType, lists: TaskList[] }>({
+  const workspaceId = workspaces?.[0]?.id;
+
+  // Step 2: Fetch boards in the workspace
+  const { data: boards, isLoading: isLoadingBoards } = useQuery<{ id: string; workspaceId: string; name: string; position: number; createdAt: string }[]>({
+    queryKey: ['boards', workspaceId],
+    queryFn: async () => {
+      const res = await api.get(`/workspaces/${workspaceId}/boards`);
+      return res.data;
+    },
+    enabled: !!workspaceId,
+  });
+
+  const boardId = boards?.[0]?.id;
+
+  // Step 3: Fetch board details and lists
+  const { data: boardInfo, isLoading: isLoadingBoard } = useQuery<{ board: BoardType; lists: TaskList[] }>({
     queryKey: ['board', boardId],
     queryFn: async () => {
-      // Assuming endpoint returns board details and its lists
-      // const res = await api.get(`/boards/${boardId}?workspaceId=${workspaceId}`);
-      // return res.data;
-      
-      // Mocked for demonstration since we only built the Task APIs in backend plan
-      return {
-        board: { id: boardId, workspaceId, name: 'Engineering Sprint', position: 1, createdAt: new Date().toISOString() },
-        lists: [
-          { id: 'list-1', boardId, name: 'To Do', position: 1 },
-          { id: 'list-2', boardId, name: 'In Progress', position: 2 },
-          { id: 'list-3', boardId, name: 'Done', position: 3 },
-        ]
-      };
-    }
+      const res = await api.get(`/boards/${boardId}`);
+      return res.data;
+    },
+    enabled: !!boardId,
   });
+
+  // Use WebSocket for real-time sync and presence
+  const { activeUsers, sendHeartbeat } = useBoardWebSocket(workspaceId ?? '', boardId ?? '');
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
+  const isLoading = isLoadingWorkspaces || isLoadingBoards || isLoadingBoard;
+
   if (isLoading) {
-    return <div className="h-screen flex items-center justify-center">Loading board...</div>;
+    return (
+      <div className="h-screen flex items-center justify-center bg-gray-50">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 size={32} className="animate-spin text-blue-600" />
+          <span className="text-gray-500 text-sm">Loading your workspace...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!workspaceId || !boardId || !boardInfo) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-gray-800 mb-2">No workspace found</h2>
+          <p className="text-gray-500">Please contact an administrator or try logging in again.</p>
+          <button onClick={handleLogout} className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg">
+            Back to Login
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
