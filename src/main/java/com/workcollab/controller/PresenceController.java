@@ -21,7 +21,7 @@ import java.time.Instant;
  *
  * <p>Clients send heartbeat messages to {@code /app/presence.heartbeat} to
  * indicate they are actively viewing or editing a specific task card. These
- * are broadcast to all subscribers of the board topic so that collaborators
+ * are broadcast to all subscribers of the project topic so that collaborators
  * can display live avatars.</p>
  *
  * <p>Presence events are <strong>non-transactional</strong> — they bypass
@@ -38,7 +38,7 @@ public class PresenceController {
     /**
      * Handles presence heartbeat messages from WebSocket clients.
      *
-     * @param request   the presence payload (workspaceId, boardId, taskId, action)
+     * @param request   the presence payload (workspaceId, projectId, taskId, action)
      * @param principal the authenticated STOMP user (set by JwtChannelInterceptor)
      */
     @MessageMapping("/presence.heartbeat")
@@ -49,8 +49,8 @@ public class PresenceController {
             return;
         }
 
-        log.debug("Presence heartbeat: user {} is {} task {} on board {}",
-                user.getId(), request.getAction(), request.getTaskId(), request.getBoardId());
+        log.debug("Presence heartbeat: user {} is {} task {} on project {}",
+                user.getId(), request.getAction(), request.getTaskId(), request.getProjectId());
 
         UserPresencePayload presencePayload = UserPresencePayload.builder()
                 .userId(user.getId())
@@ -62,7 +62,7 @@ public class PresenceController {
 
         CollaborationMessage message = CollaborationMessage.builder()
                 .workspaceId(request.getWorkspaceId())
-                .boardId(request.getBoardId())
+                .projectId(request.getProjectId())
                 .eventType(CollaborationEventType.USER_PRESENCE)
                 .payload(presencePayload)
                 .triggeredBy(user.getId())

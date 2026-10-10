@@ -22,8 +22,20 @@ public class Task {
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "list_id", nullable = false)
-    private TaskList list;
+    @JoinColumn(name = "project_id", nullable = false)
+    private Project project;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "list_id")
+    private TaskList list; // Made nullable for views that don't use strict columns
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "sprint_id")
+    private Sprint sprint;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "parent_task_id")
+    private Task parentTask;
 
     @Column(nullable = false)
     private String title;
@@ -31,12 +43,21 @@ public class Task {
     @Column(columnDefinition = "TEXT")
     private String description;
 
+    @Column(length = 50)
+    private String status = "TODO"; // BACKLOG, TODO, IN_PROGRESS, IN_REVIEW, BLOCKED, DONE, CANCELLED
+
     @Enumerated(EnumType.STRING)
     @Column(length = 50)
     private Priority priority;
 
     @Column(nullable = false)
     private Double position;
+
+    private Double estimatedHours;
+
+    private Double actualHours;
+
+    private Integer progress = 0;
 
     private ZonedDateTime dueDate;
 

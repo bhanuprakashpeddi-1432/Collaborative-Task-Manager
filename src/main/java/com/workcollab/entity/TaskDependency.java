@@ -8,27 +8,27 @@ import java.time.ZonedDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "boards")
+@Table(name = "task_dependencies", uniqueConstraints = {
+        @UniqueConstraint(columnNames = {"task_id", "depends_on_task_id"})
+})
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Board {
+public class TaskDependency {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "workspace_id", nullable = false)
-    private Workspace workspace;
+    @JoinColumn(name = "task_id", nullable = false)
+    private Task task;
 
-    @Column(nullable = false)
-    private String name;
-
-    @Column(nullable = false)
-    private Double position;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "depends_on_task_id", nullable = false)
+    private Task dependsOnTask;
 
     @CreationTimestamp
     @Column(nullable = false, updatable = false)

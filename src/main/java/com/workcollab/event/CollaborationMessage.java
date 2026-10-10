@@ -26,8 +26,8 @@ public class CollaborationMessage {
     /** Workspace ID for topic routing. */
     private UUID workspaceId;
 
-    /** Board ID for topic routing. */
-    private UUID boardId;
+    /** Project ID for topic routing. */
+    private UUID projectId;
 
     /** The type of collaboration event. */
     private CollaborationEventType eventType;
@@ -52,9 +52,9 @@ public class CollaborationMessage {
     /**
      * Computes the STOMP topic destination for this message.
      *
-     * @return destination in the format {@code /topic/workspace.{wId}.boards.{bId}}
+     * @return destination in the format {@code /topic/workspace.{wId}.projects.{pId}}
      */
     public String toDestination() {
-        return String.format("/topic/workspace.%s.boards.%s", workspaceId, boardId);
+        return String.format("/topic/workspace.%s.projects.%s", workspaceId, projectId);
     }
 }

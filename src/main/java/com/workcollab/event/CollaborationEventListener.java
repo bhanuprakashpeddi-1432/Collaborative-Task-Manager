@@ -25,12 +25,12 @@ public class CollaborationEventListener {
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleCollaborationEvent(CollaborationEvent event) {
-        log.info("Post-commit collaboration event [{}] for board {} in workspace {}",
+        log.info("Post-commit collaboration event [{}] for project {} in workspace {}",
                 event.getEventType(), event.getBoardId(), event.getWorkspaceId());
 
         CollaborationMessage message = CollaborationMessage.builder()
                 .workspaceId(event.getWorkspaceId())
-                .boardId(event.getBoardId())
+                .projectId(event.getBoardId())
                 .eventType(event.getEventType())
                 .payload(event.getPayload())
                 .triggeredBy(event.getTriggeredBy())

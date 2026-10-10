@@ -23,6 +23,7 @@ public class AuthController {
     private final com.workcollab.repository.WorkspaceRepository workspaceRepository;
     private final com.workcollab.repository.WorkspaceMemberRepository workspaceMemberRepository;
     private final org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
+    private final com.workcollab.service.RefreshTokenService refreshTokenService;
 
     @PostMapping("/login")
     public ResponseEntity<JwtAuthResponse> authenticateUser(@RequestBody LoginRequest loginRequest) {
@@ -34,13 +35,40 @@ public class AuthController {
 
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
 
+        com.workcollab.entity.RefreshToken refreshToken = refreshTokenService.createRefreshToken(userDetails.getId());
+
         JwtAuthResponse.UserDto userDto = new JwtAuthResponse.UserDto(
                 userDetails.getId(),
                 userDetails.getUsername(),
                 userDetails.getFullName()
         );
 
-        return ResponseEntity.ok(new JwtAuthResponse(jwt, userDto));
+        return ResponseEntity.ok(new JwtAuthResponse(jwt, refreshToken.getToken(), userDto));
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<?> refreshtoken(@RequestBody com.workcollab.dto.TokenRefreshRequest request) {
+        String requestRefreshToken = request.getRefreshToken();
+
+        return refreshTokenService.findByToken(requestRefreshToken)
+                .map(refreshTokenService::verifyExpiration)
+                .map(com.workcollab.entity.RefreshToken::getUser)
+                .map(user -> {
+                    String token = jwtUtils.generateTokenFromUsername(user.getEmail());
+                    return ResponseEntity.ok(new JwtAuthResponse(token, requestRefreshToken, new JwtAuthResponse.UserDto(
+                            user.getId(),
+                            user.getEmail(),
+                            user.getFullName()
+                    )));
+                })
+                .orElseThrow(() -> new RuntimeException("Refresh token is not in database!"));
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<?> logoutUser() {
+        UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        refreshTokenService.deleteByUserId(userDetails.getId());
+        return ResponseEntity.ok(java.util.Map.of("message", "Log out successful!"));
     }
 
     @PostMapping("/register")
@@ -82,12 +110,14 @@ public class AuthController {
         String jwt = jwtUtils.generateJwtToken(authentication);
 
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+        com.workcollab.entity.RefreshToken refreshToken = refreshTokenService.createRefreshToken(userDetails.getId());
+
         JwtAuthResponse.UserDto userDto = new JwtAuthResponse.UserDto(
                 userDetails.getId(),
                 userDetails.getUsername(),
                 userDetails.getFullName()
         );
 
-        return ResponseEntity.ok(new JwtAuthResponse(jwt, userDto));
+        return ResponseEntity.ok(new JwtAuthResponse(jwt, refreshToken.getToken(), userDto));
     }
 }

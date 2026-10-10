@@ -6,6 +6,7 @@ import com.workcollab.dto.TaskFilterRequest;
 import com.workcollab.dto.TaskMoveRequest;
 import com.workcollab.dto.TaskUpdateRequest;
 import com.workcollab.entity.Priority;
+import com.workcollab.entity.Project;
 import com.workcollab.entity.Task;
 import com.workcollab.entity.TaskList;
 import com.workcollab.entity.User;
@@ -18,6 +19,7 @@ import com.workcollab.repository.TaskListRepository;
 import com.workcollab.repository.TaskRepository;
 import com.workcollab.repository.TaskSpecification;
 import com.workcollab.repository.UserRepository;
+import com.workcollab.repository.ProjectRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -40,30 +42,43 @@ public class TaskServiceImpl implements TaskService {
 
     private final TaskRepository taskRepository;
     private final TaskListRepository taskListRepository;
+    private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
-    public TaskDto createTask(UUID boardId, TaskCreateRequest request, UUID userId) {
-        TaskList list = taskListRepository.findById(Objects.requireNonNull(request.getListId()))
-                .orElseThrow(() -> new ResourceNotFoundException("List not found"));
-        
-        if (!list.getBoard().getId().equals(boardId)) {
-            throw new IllegalArgumentException("List does not belong to the specified board");
+    public TaskDto createTask(UUID projectId, TaskCreateRequest request, UUID userId) {
+        Project project = projectRepository.findById(Objects.requireNonNull(request.getProjectId()))
+                .orElseThrow(() -> new ResourceNotFoundException("Project not found"));
+
+        if (!project.getId().equals(projectId)) {
+            throw new IllegalArgumentException("Project ID mismatch");
+        }
+
+        TaskList list = null;
+        if (request.getListId() != null) {
+            list = taskListRepository.findById(request.getListId())
+                    .orElseThrow(() -> new ResourceNotFoundException("List not found"));
         }
 
         User creator = userRepository.getReferenceById(Objects.requireNonNull(userId));
         User assignee = request.getAssignedToId() != null ? userRepository.getReferenceById(Objects.requireNonNull(request.getAssignedToId())) : null;
-
-        Double position = generateInitialPosition(list.getId());
+        Task parentTask = request.getParentTaskId() != null ? taskRepository.getReferenceById(request.getParentTaskId()) : null;
+        
+        Double position = 65536.0;
+        if (list != null) position = generateInitialPosition(list.getId());
 
         Task task = Task.builder()
+                .project(project)
                 .list(list)
+                .parentTask(parentTask)
                 .title(request.getTitle())
                 .description(request.getDescription())
+                .status(request.getStatus() != null ? request.getStatus() : "TODO")
                 .priority(request.getPriority() != null ? request.getPriority() : Priority.MEDIUM)
                 .position(position)
+                .estimatedHours(request.getEstimatedHours())
                 .dueDate(request.getDueDate())
                 .version(0L)
                 .createdBy(creator)
@@ -90,15 +105,19 @@ public class TaskServiceImpl implements TaskService {
             throw new TaskOptimisticLockingException("Task was modified concurrently", task.getVersion(), request.getVersion());
         }
 
-        task.setTitle(request.getTitle());
-        task.setDescription(request.getDescription());
-        task.setPriority(request.getPriority());
-        task.setDueDate(request.getDueDate());
+        if (request.getTitle() != null) task.setTitle(request.getTitle());
+        if (request.getDescription() != null) task.setDescription(request.getDescription());
+        if (request.getPriority() != null) task.setPriority(request.getPriority());
+        if (request.getStatus() != null) task.setStatus(request.getStatus());
+        if (request.getDueDate() != null) task.setDueDate(request.getDueDate());
+        if (request.getEstimatedHours() != null) task.setEstimatedHours(request.getEstimatedHours());
+        if (request.getActualHours() != null) task.setActualHours(request.getActualHours());
+        if (request.getProgress() != null) task.setProgress(request.getProgress());
         
         if (request.getAssignedToId() != null) {
             task.setAssignedTo(userRepository.getReferenceById(Objects.requireNonNull(request.getAssignedToId())));
-        } else {
-            task.setAssignedTo(null);
+        } else if (request.getAssignedToId() == null && request.getTitle() == null) {
+            // Null check bypass trick for DTO
         }
 
         try {
@@ -108,7 +127,6 @@ public class TaskServiceImpl implements TaskService {
             publishCollaborationEvent(updatedTask, CollaborationEventType.TASK_UPDATED, dto, userId);
             return dto;
         } catch (OptimisticLockingFailureException e) {
-            // Fetch current state to report the actual version
             Task currentTask = taskRepository.findById(Objects.requireNonNull(taskId)).orElseThrow();
             throw new TaskOptimisticLockingException("Task was modified concurrently", currentTask.getVersion(), request.getVersion());
         }
@@ -124,7 +142,7 @@ public class TaskServiceImpl implements TaskService {
             throw new TaskOptimisticLockingException("Task was modified concurrently", task.getVersion(), request.getVersion());
         }
 
-        if (!task.getList().getId().equals(request.getTargetListId())) {
+        if (task.getList() == null || !task.getList().getId().equals(request.getTargetListId())) {
             TaskList targetList = taskListRepository.findById(Objects.requireNonNull(request.getTargetListId()))
                     .orElseThrow(() -> new ResourceNotFoundException("Target list not found"));
             task.setList(targetList);
@@ -165,22 +183,19 @@ public class TaskServiceImpl implements TaskService {
         Task task = taskRepository.findById(Objects.requireNonNull(taskId))
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
 
-        // Capture routing metadata before deletion — needed for the WebSocket broadcast
-        UUID boardId = task.getList().getBoard().getId();
-        UUID workspaceId = task.getList().getBoard().getWorkspace().getId();
-        UUID listId = task.getList().getId();
+        UUID projectId = task.getProject().getId();
+        UUID workspaceId = task.getProject().getWorkspace().getId();
+        UUID listId = task.getList() != null ? task.getList().getId() : null;
 
         taskRepository.delete(task);
 
-        // Publish collaboration event with a lightweight delete summary.
-        // Task activity logging is skipped because the FK cascades on delete.
         Map<String, Object> deletePayload = Map.of(
                 "taskId", taskId,
-                "listId", listId
+                "listId", listId != null ? listId : ""
         );
         eventPublisher.publishEvent(Objects.requireNonNull(CollaborationEvent.builder()
                 .workspaceId(workspaceId)
-                .boardId(boardId)
+                .boardId(projectId)
                 .eventType(CollaborationEventType.TASK_DELETED)
                 .payload(deletePayload)
                 .triggeredBy(userId)
@@ -189,9 +204,9 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<TaskDto> getTasks(UUID boardId, TaskFilterRequest filterRequest) {
+    public Page<TaskDto> getTasks(UUID projectId, TaskFilterRequest filterRequest) {
         Specification<Task> spec = TaskSpecification.filterTasks(
-                boardId,
+                projectId,
                 filterRequest.getPriority(),
                 filterRequest.getAssignedToId(),
                 filterRequest.getDueDateStart(),
@@ -223,19 +238,14 @@ public class TaskServiceImpl implements TaskService {
                 .build()));
     }
 
-    /**
-     * Publishes a {@link CollaborationEvent} for real-time WebSocket broadcast.
-     * The event is consumed by {@link com.workcollab.event.CollaborationEventListener}
-     * only after the enclosing transaction commits.
-     */
     private void publishCollaborationEvent(Task task, CollaborationEventType eventType,
                                            Object payload, UUID userId) {
-        UUID boardId = task.getList().getBoard().getId();
-        UUID workspaceId = task.getList().getBoard().getWorkspace().getId();
+        UUID projectId = task.getProject().getId();
+        UUID workspaceId = task.getProject().getWorkspace().getId();
 
         eventPublisher.publishEvent(Objects.requireNonNull(CollaborationEvent.builder()
                 .workspaceId(workspaceId)
-                .boardId(boardId)
+                .boardId(projectId) // boardId in event is now projectId
                 .eventType(eventType)
                 .payload(payload)
                 .triggeredBy(userId)
@@ -245,11 +255,18 @@ public class TaskServiceImpl implements TaskService {
     private TaskDto mapToDto(Task task) {
         return TaskDto.builder()
                 .id(task.getId())
-                .listId(task.getList().getId())
+                .projectId(task.getProject().getId())
+                .listId(task.getList() != null ? task.getList().getId() : null)
+                .sprintId(task.getSprint() != null ? task.getSprint().getId() : null)
+                .parentTaskId(task.getParentTask() != null ? task.getParentTask().getId() : null)
                 .title(task.getTitle())
                 .description(task.getDescription())
+                .status(task.getStatus())
                 .priority(task.getPriority())
                 .position(task.getPosition())
+                .estimatedHours(task.getEstimatedHours())
+                .actualHours(task.getActualHours())
+                .progress(task.getProgress())
                 .dueDate(task.getDueDate())
                 .version(task.getVersion())
                 .createdById(task.getCreatedBy().getId())

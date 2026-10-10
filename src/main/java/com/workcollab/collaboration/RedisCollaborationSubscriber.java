@@ -39,7 +39,7 @@ public class RedisCollaborationSubscriber implements MessageListener {
             String destination = collaborationMessage.toDestination();
             log.debug("Redis → STOMP: broadcasting [{}] to {}", collaborationMessage.getEventType(), destination);
 
-            messagingTemplate.convertAndSend(destination, collaborationMessage);
+            messagingTemplate.convertAndSend(java.util.Objects.requireNonNull(destination), collaborationMessage);
         } catch (Exception e) {
             log.error("Failed to process Redis collaboration message", e);
         }

@@ -15,7 +15,7 @@ export function useKanbanDrag(workspaceId: string, boardId: string) {
 
   const moveTaskMutation = useMutation({
     mutationFn: async ({ taskId, payload }: { taskId: string; payload: MovePayload }) => {
-      const response = await api.patch(`/boards/${boardId}/tasks/${taskId}/move?workspaceId=${workspaceId}`, payload);
+      const response = await api.patch(`/projects/${boardId}/tasks/${taskId}/move?workspaceId=${workspaceId}`, payload);
       return response.data;
     },
     onMutate: async ({ taskId, payload }) => {

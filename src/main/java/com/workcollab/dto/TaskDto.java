@@ -15,11 +15,18 @@ import java.util.UUID;
 @AllArgsConstructor
 public class TaskDto {
     private UUID id;
+    private UUID projectId;
     private UUID listId;
+    private UUID sprintId;
+    private UUID parentTaskId;
     private String title;
     private String description;
+    private String status;
     private Priority priority;
     private Double position;
+    private Double estimatedHours;
+    private Double actualHours;
+    private Integer progress;
     private ZonedDateTime dueDate;
     private Long version;
     private UUID createdById;

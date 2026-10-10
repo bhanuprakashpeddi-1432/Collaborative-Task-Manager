@@ -34,8 +34,9 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
         StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
 
         if (accessor != null && StompCommand.CONNECT.equals(accessor.getCommand())) {
-            Object userAttr = accessor.getSessionAttributes() != null
-                    ? accessor.getSessionAttributes().get(JwtHandshakeInterceptor.AUTHENTICATED_USER_ATTR)
+            java.util.Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
+            Object userAttr = sessionAttributes != null
+                    ? sessionAttributes.get(JwtHandshakeInterceptor.AUTHENTICATED_USER_ATTR)
                     : null;
 
             if (userAttr instanceof UserDetailsImpl userDetails) {

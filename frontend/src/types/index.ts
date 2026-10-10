@@ -2,11 +2,18 @@ export type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
 
 export interface Task {
   id: string;
-  listId: string;
+  projectId: string;
+  listId: string | null;
+  sprintId: string | null;
+  parentTaskId: string | null;
   title: string;
   description: string;
+  status: string;
   priority: Priority;
   position: number;
+  estimatedHours: number | null;
+  actualHours: number | null;
+  progress: number;
   dueDate: string | null;
   version: number;
   createdById: string;
@@ -30,10 +37,20 @@ export interface Board {
   createdAt: string;
 }
 
+export interface Comment {
+  id: string;
+  taskId: string;
+  userId: string;
+  userName: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface CollaborationMessage {
   workspaceId: string;
-  boardId: string;
-  eventType: 'TASK_CREATED' | 'TASK_MOVED' | 'TASK_UPDATED' | 'TASK_DELETED' | 'USER_PRESENCE';
+  projectId: string;
+  eventType: 'TASK_CREATED' | 'TASK_MOVED' | 'TASK_UPDATED' | 'TASK_DELETED' | 'USER_PRESENCE' | 'COMMENT_ADDED';
   payload: any;
   triggeredBy: string;
   timestamp: string;

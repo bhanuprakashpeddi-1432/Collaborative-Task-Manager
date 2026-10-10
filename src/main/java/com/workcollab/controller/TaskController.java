@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/boards/{boardId}/tasks")
+@RequestMapping("/api/projects/{projectId}/tasks")
 @RequiredArgsConstructor
 public class TaskController {
 
@@ -28,18 +28,18 @@ public class TaskController {
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("@workspaceSecurity.hasAccess(T(java.util.UUID).fromString(#workspaceId), 'MEMBER')")
     public TaskDto createTask(
-            @PathVariable UUID boardId,
+            @PathVariable UUID projectId,
             @RequestParam("workspaceId") String workspaceId, // Required to check RBAC
             @Valid @RequestBody TaskCreateRequest request,
             @AuthenticationPrincipal UserDetailsImpl userDetails) {
         
-        return taskService.createTask(boardId, request, userDetails.getId());
+        return taskService.createTask(projectId, request, userDetails.getId());
     }
 
     @PutMapping("/{taskId}")
     @PreAuthorize("@workspaceSecurity.hasAccess(T(java.util.UUID).fromString(#workspaceId), 'MEMBER')")
     public TaskDto updateTask(
-            @PathVariable UUID boardId,
+            @PathVariable UUID projectId,
             @PathVariable UUID taskId,
             @RequestParam("workspaceId") String workspaceId,
             @Valid @RequestBody TaskUpdateRequest request,
@@ -51,7 +51,7 @@ public class TaskController {
     @PatchMapping("/{taskId}/move")
     @PreAuthorize("@workspaceSecurity.hasAccess(T(java.util.UUID).fromString(#workspaceId), 'MEMBER')")
     public TaskDto moveTask(
-            @PathVariable UUID boardId,
+            @PathVariable UUID projectId,
             @PathVariable UUID taskId,
             @RequestParam("workspaceId") String workspaceId,
             @Valid @RequestBody TaskMoveRequest request,
@@ -64,7 +64,7 @@ public class TaskController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize("@workspaceSecurity.hasAccess(T(java.util.UUID).fromString(#workspaceId), 'MEMBER')")
     public void deleteTask(
-            @PathVariable UUID boardId,
+            @PathVariable UUID projectId,
             @PathVariable UUID taskId,
             @RequestParam("workspaceId") String workspaceId,
             @AuthenticationPrincipal UserDetailsImpl userDetails) {
@@ -75,10 +75,10 @@ public class TaskController {
     @GetMapping
     @PreAuthorize("@workspaceSecurity.hasAccess(T(java.util.UUID).fromString(#workspaceId), 'VIEWER')")
     public Page<TaskDto> getTasks(
-            @PathVariable UUID boardId,
+            @PathVariable UUID projectId,
             @RequestParam("workspaceId") String workspaceId,
             TaskFilterRequest filterRequest) {
         
-        return taskService.getTasks(boardId, filterRequest);
+        return taskService.getTasks(projectId, filterRequest);
     }
 }

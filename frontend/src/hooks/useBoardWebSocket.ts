@@ -30,7 +30,7 @@ export function useBoardWebSocket(workspaceId: string, boardId: string) {
         console.log('Connected to STOMP');
         
         // Subscribe to the board topic
-        const topic = `/topic/workspace.${workspaceId}.boards.${boardId}`;
+        const topic = `/topic/workspace.${workspaceId}.projects.${boardId}`;
         client.subscribe(topic, (message) => {
           const collabMsg: CollaborationMessage = JSON.parse(message.body);
           handleRealTimeEvent(collabMsg);
@@ -100,7 +100,7 @@ export function useBoardWebSocket(workspaceId: string, boardId: string) {
         destination: '/app/presence.heartbeat',
         body: JSON.stringify({
           workspaceId,
-          boardId,
+          projectId: boardId,
           taskId,
           action,
         }),

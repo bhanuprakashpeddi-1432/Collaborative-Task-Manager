@@ -7,6 +7,8 @@ import { Column } from './Column';
 import { useKanbanDrag } from '@/hooks/useKanbanDrag';
 import { Plus, X, Loader2 } from 'lucide-react';
 
+import { Filter } from 'lucide-react';
+
 interface KanbanBoardProps {
   workspaceId: string;
   boardId: string;
@@ -17,10 +19,16 @@ interface KanbanBoardProps {
 export function KanbanBoard({ workspaceId, boardId, lists, onTaskClick }: KanbanBoardProps) {
   const queryClient = useQueryClient();
 
+  const [filterPriority, setFilterPriority] = useState<string>('');
+  const [searchString, setSearchString] = useState<string>('');
+  
   const { data: tasks = [] } = useQuery<Task[]>({
-    queryKey: ['tasks', boardId],
+    queryKey: ['tasks', boardId, filterPriority, searchString],
     queryFn: async () => {
-      const res = await api.get(`/boards/${boardId}/tasks?workspaceId=${workspaceId}&size=1000`);
+      let url = `/projects/${boardId}/tasks?workspaceId=${workspaceId}&size=1000`;
+      if (filterPriority) url += `&priority=${filterPriority}`;
+      if (searchString) url += `&searchString=${encodeURIComponent(searchString)}`;
+      const res = await api.get(url);
       return res.data.content || res.data;
     },
   });
@@ -33,8 +41,9 @@ export function KanbanBoard({ workspaceId, boardId, lists, onTaskClick }: Kanban
 
   const createTaskMutation = useMutation({
     mutationFn: async ({ listId, title }: { listId: string; title: string }) => {
-      const res = await api.post(`/boards/${boardId}/tasks?workspaceId=${workspaceId}`, {
+      const res = await api.post(`/projects/${boardId}/tasks?workspaceId=${workspaceId}`, {
         listId,
+        projectId: boardId,
         title,
         priority: 'MEDIUM',
       });
@@ -56,8 +65,36 @@ export function KanbanBoard({ workspaceId, boardId, lists, onTaskClick }: Kanban
   };
 
   return (
-    <DragDropContext onDragEnd={(result) => onDragEnd(result, tasks)}>
-      <div className="flex gap-6 h-full overflow-x-auto p-4 items-start">
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Filter Bar */}
+      <div className="px-6 py-3 bg-white border-b border-gray-200 flex items-center gap-4 shadow-sm shrink-0">
+        <div className="flex items-center gap-2 text-gray-500 font-medium text-sm">
+          <Filter size={16} /> Filters:
+        </div>
+        
+        <input 
+          type="text"
+          placeholder="Search tasks..."
+          value={searchString}
+          onChange={e => setSearchString(e.target.value)}
+          className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-shadow w-64 bg-gray-50"
+        />
+        
+        <select
+          value={filterPriority}
+          onChange={e => setFilterPriority(e.target.value)}
+          className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm outline-none focus:border-indigo-500 bg-gray-50"
+        >
+          <option value="">All Priorities</option>
+          <option value="LOW">Low</option>
+          <option value="MEDIUM">Medium</option>
+          <option value="HIGH">High</option>
+          <option value="URGENT">Urgent</option>
+        </select>
+      </div>
+
+      <DragDropContext onDragEnd={(result) => onDragEnd(result, tasks)}>
+        <div className="flex gap-6 flex-1 overflow-x-auto p-4 items-start">
         {lists.sort((a, b) => a.position - b.position).map((list) => {
           const listTasks = tasks
             .filter((t) => t.listId === list.id)
@@ -138,7 +175,8 @@ export function KanbanBoard({ workspaceId, boardId, lists, onTaskClick }: Kanban
             </div>
           );
         })}
-      </div>
-    </DragDropContext>
+        </div>
+      </DragDropContext>
+    </div>
   );
 }

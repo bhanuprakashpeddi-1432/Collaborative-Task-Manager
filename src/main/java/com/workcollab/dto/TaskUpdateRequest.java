@@ -17,12 +17,25 @@ import java.util.UUID;
 @AllArgsConstructor
 public class TaskUpdateRequest {
 
-    @NotBlank(message = "Title cannot be blank")
     private String title;
 
     private String description;
 
+    private UUID listId;
+
+    private UUID sprintId;
+
+    private UUID parentTaskId;
+
+    private String status;
+
     private Priority priority;
+
+    private Double estimatedHours;
+
+    private Double actualHours;
+
+    private Integer progress;
 
     private ZonedDateTime dueDate;
 

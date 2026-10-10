@@ -73,7 +73,7 @@ public abstract class IntegrationTestBase {
     protected WorkspaceMemberRepository workspaceMemberRepository;
 
     @Autowired
-    protected BoardRepository boardRepository;
+    protected ProjectRepository projectRepository;
 
     @Autowired
     protected TaskListRepository taskListRepository;
@@ -94,7 +94,7 @@ public abstract class IntegrationTestBase {
 
     protected User testUser;
     protected Workspace testWorkspace;
-    protected Board testBoard;
+    protected Project testProject;
     protected TaskList todoList;
     protected TaskList inProgressList;
     protected String authToken;
@@ -104,7 +104,7 @@ public abstract class IntegrationTestBase {
         // Clean slate — order matters because of FK constraints
         taskRepository.deleteAll();
         taskListRepository.deleteAll();
-        boardRepository.deleteAll();
+        projectRepository.deleteAll();
         workspaceMemberRepository.deleteAll();
         workspaceRepository.deleteAll();
         userRepository.deleteAll();
@@ -129,22 +129,22 @@ public abstract class IntegrationTestBase {
                 .role(Role.ADMIN)
                 .build()));
 
-        // Board
-        testBoard = boardRepository.save(Objects.requireNonNull(Board.builder()
+        // Project
+        testProject = projectRepository.save(Objects.requireNonNull(Project.builder()
                 .workspace(testWorkspace)
-                .name("Sprint Board")
-                .position(65536.0)
+                .name("Sprint Project")
+                .status("ACTIVE")
                 .build()));
 
         // Task lists
         todoList = taskListRepository.save(Objects.requireNonNull(TaskList.builder()
-                .board(testBoard)
+                .project(testProject)
                 .name("To Do")
                 .position(65536.0)
                 .build()));
 
         inProgressList = taskListRepository.save(Objects.requireNonNull(TaskList.builder()
-                .board(testBoard)
+                .project(testProject)
                 .name("In Progress")
                 .position(131072.0)
                 .build()));
@@ -181,17 +181,17 @@ public abstract class IntegrationTestBase {
     }
 
     /**
-     * Convenience: task API base URL for the seeded board.
+     * Convenience: task API base URL for the seeded project.
      */
     protected String taskUrl() {
-        return "/api/boards/" + testBoard.getId() + "/tasks?workspaceId=" + testWorkspace.getId();
+        return "/api/projects/" + testProject.getId() + "/tasks?workspaceId=" + testWorkspace.getId();
     }
 
     protected String taskUrl(UUID taskId) {
-        return "/api/boards/" + testBoard.getId() + "/tasks/" + taskId + "?workspaceId=" + testWorkspace.getId();
+        return "/api/projects/" + testProject.getId() + "/tasks/" + taskId + "?workspaceId=" + testWorkspace.getId();
     }
 
     protected String moveUrl(UUID taskId) {
-        return "/api/boards/" + testBoard.getId() + "/tasks/" + taskId + "/move?workspaceId=" + testWorkspace.getId();
+        return "/api/projects/" + testProject.getId() + "/tasks/" + taskId + "/move?workspaceId=" + testWorkspace.getId();
     }
 }

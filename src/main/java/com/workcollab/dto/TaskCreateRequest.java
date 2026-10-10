@@ -17,15 +17,25 @@ import java.util.UUID;
 @AllArgsConstructor
 public class TaskCreateRequest {
 
-    @NotNull(message = "List ID is required")
-    private UUID listId;
+    @NotNull(message = "Project ID is required")
+    private UUID projectId;
+
+    private UUID listId; // Optional now that we have status
+
+    private UUID sprintId;
+
+    private UUID parentTaskId;
 
     @NotBlank(message = "Title is required")
     private String title;
 
     private String description;
 
+    private String status;
+
     private Priority priority;
+
+    private Double estimatedHours;
 
     private ZonedDateTime dueDate;
 

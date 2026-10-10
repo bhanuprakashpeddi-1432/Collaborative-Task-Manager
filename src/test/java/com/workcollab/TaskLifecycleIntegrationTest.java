@@ -12,10 +12,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
-import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -84,7 +81,7 @@ class TaskLifecycleIntegrationTest extends IntegrationTestBase {
         createTask("Task A");
         createTask("Task B");
 
-        HttpEntity<Void> request = new HttpEntity<>(authHeaders());
+        HttpEntity<Void> request = new HttpEntity<>(Objects.requireNonNull(authHeaders()));
         ResponseEntity<String> response = restTemplate.exchange(
                 taskUrl(), HttpMethod.GET, request, String.class);
 

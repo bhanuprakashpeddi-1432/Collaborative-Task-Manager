@@ -16,7 +16,7 @@ public class DataSeeder implements CommandLineRunner {
     private final UserRepository userRepository;
     private final WorkspaceRepository workspaceRepository;
     private final WorkspaceMemberRepository workspaceMemberRepository;
-    private final BoardRepository boardRepository;
+    private final ProjectRepository projectRepository;
     private final TaskListRepository taskListRepository;
     private final TaskRepository taskRepository;
     private final PasswordEncoder passwordEncoder;
@@ -50,31 +50,31 @@ public class DataSeeder implements CommandLineRunner {
                     .build();
             workspaceMemberRepository.save(member);
 
-            // Create a default board
-            Board board = Board.builder()
+            // Create a default project
+            Project project = Project.builder()
                     .workspace(workspace)
                     .name("Engineering Sprint")
-                    .position(1.0)
+                    .status("ACTIVE")
                     .build();
-            board = boardRepository.save(board);
+            project = projectRepository.save(project);
 
             // Create task lists
             TaskList todoList = TaskList.builder()
-                    .board(board)
+                    .project(project)
                     .name("To Do")
                     .position(1.0)
                     .build();
             todoList = taskListRepository.save(todoList);
 
             TaskList inProgressList = TaskList.builder()
-                    .board(board)
+                    .project(project)
                     .name("In Progress")
                     .position(2.0)
                     .build();
             inProgressList = taskListRepository.save(inProgressList);
 
             TaskList doneList = TaskList.builder()
-                    .board(board)
+                    .project(project)
                     .name("Done")
                     .position(3.0)
                     .build();
@@ -153,7 +153,7 @@ public class DataSeeder implements CommandLineRunner {
             log.info("Seeding complete!");
             log.info("  User:      tester@workcollab.dev / password123");
             log.info("  Workspace: {} (id={})", workspace.getName(), workspace.getId());
-            log.info("  Board:     {} (id={})", board.getName(), board.getId());
+            log.info("  Project:   {} (id={})", project.getName(), project.getId());
             log.info("  Lists:     To Do ({}), In Progress ({}), Done ({})", todoList.getId(), inProgressList.getId(), doneList.getId());
             log.info("  Tasks:     6 sample tasks created");
         }

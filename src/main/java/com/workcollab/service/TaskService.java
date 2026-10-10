@@ -10,9 +10,9 @@ import org.springframework.data.domain.Page;
 import java.util.UUID;
 
 public interface TaskService {
-    TaskDto createTask(UUID boardId, TaskCreateRequest request, UUID userId);
+    TaskDto createTask(UUID projectId, TaskCreateRequest request, UUID userId);
     TaskDto updateTask(UUID taskId, TaskUpdateRequest request, UUID userId);
     TaskDto moveTask(UUID taskId, TaskMoveRequest request, UUID userId);
     void deleteTask(UUID taskId, UUID userId);
-    Page<TaskDto> getTasks(UUID boardId, TaskFilterRequest filterRequest);
+    Page<TaskDto> getTasks(UUID projectId, TaskFilterRequest filterRequest);
 }

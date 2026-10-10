@@ -162,7 +162,7 @@ class OptimisticLockingIntegrationTest extends IntegrationTestBase {
                 taskUrl(Objects.requireNonNull(task.getId())), HttpMethod.GET,
                 new HttpEntity<>(Objects.requireNonNull(authHeaders())), TaskDto.class);
         // Note: GET on the task URL returns a Page; so we verify via repo instead
-        assertThat(taskRepository.findById(task.getId()))
+        assertThat(taskRepository.findById(Objects.requireNonNull(task.getId())))
                 .isPresent()
                 .hasValueSatisfying(t -> assertThat(t.getVersion()).isEqualTo(1L));
     }

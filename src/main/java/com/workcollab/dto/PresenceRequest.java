@@ -24,7 +24,7 @@ public class PresenceRequest {
     private UUID workspaceId;
 
     @NotNull
-    private UUID boardId;
+    private UUID projectId;
 
     @NotNull
     private UUID taskId;

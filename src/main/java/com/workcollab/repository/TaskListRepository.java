@@ -7,5 +7,5 @@ import java.util.List;
 import java.util.UUID;
 
 public interface TaskListRepository extends JpaRepository<TaskList, UUID> {
-    List<TaskList> findByBoardIdOrderByPositionAsc(UUID boardId);
+    List<TaskList> findByProjectIdOrderByPositionAsc(UUID projectId);
 }

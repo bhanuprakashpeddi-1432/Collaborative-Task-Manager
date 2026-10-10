@@ -18,6 +18,8 @@ public enum CollaborationEventType {
     /** A task was permanently deleted. */
     TASK_DELETED,
 
+    COMMENT_ADDED,
+
     /** A user started viewing, editing, or left a task card. */
     USER_PRESENCE
 }
