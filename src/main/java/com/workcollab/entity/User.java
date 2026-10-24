@@ -29,6 +29,10 @@ public class User {
     @Column(nullable = false)
     private String fullName;
 
+    @Enumerated(EnumType.STRING)
+    @Column(length = 30)
+    private SystemRole systemRole = SystemRole.TEAM_MEMBER;
+
     private String avatarUrl;
 
     @CreationTimestamp

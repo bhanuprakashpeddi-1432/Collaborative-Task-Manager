@@ -6,6 +6,7 @@ import com.workcollab.entity.Workspace;
 import com.workcollab.entity.WorkspaceMember;
 import com.workcollab.entity.Role;
 import com.workcollab.entity.User;
+import com.workcollab.entity.SystemRole;
 import com.workcollab.exception.ResourceNotFoundException;
 import com.workcollab.repository.ProjectRepository;
 import com.workcollab.repository.TaskListRepository;
@@ -38,7 +39,20 @@ public class WorkspaceController {
      */
     @GetMapping("/workspaces")
     public List<Map<String, Object>> getMyWorkspaces(@AuthenticationPrincipal UserDetailsImpl userDetails) {
-        List<WorkspaceMember> memberships = workspaceMemberRepository.findByUserId(userDetails.getId());
+        if (userDetails.getSystemRole() == SystemRole.ADMIN) {
+            return workspaceRepository.findAll().stream()
+                    .map(ws -> Map.<String, Object>of(
+                            "id", ws.getId(),
+                            "name", ws.getName(),
+                            "slug", ws.getSlug(),
+                            "role", "ADMIN"
+                    ))
+                    .toList();
+        }
+
+        List<WorkspaceMember> memberships = userDetails.getSystemRole() == SystemRole.ADMIN
+                ? workspaceMemberRepository.findAll()
+                : workspaceMemberRepository.findByUserId(userDetails.getId());
         return memberships.stream()
                 .map(m -> {
                     Workspace ws = m.getWorkspace();
@@ -46,7 +60,8 @@ public class WorkspaceController {
                             "id", ws.getId(),
                             "name", ws.getName(),
                             "slug", ws.getSlug(),
-                            "role", m.getRole().name()
+                            "role", userDetails.getSystemRole() == SystemRole.ADMIN
+                                    ? "ADMIN" : m.getRole().name()
                     );
                 })
                 .toList();
@@ -60,8 +75,10 @@ public class WorkspaceController {
             @PathVariable UUID workspaceId,
             @AuthenticationPrincipal UserDetailsImpl userDetails) {
         // Verify membership
-        workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, userDetails.getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Workspace not found or access denied"));
+        if (userDetails.getSystemRole() != SystemRole.ADMIN) {
+            workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, userDetails.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Workspace not found or access denied"));
+        }
 
         List<Project> projects = projectRepository.findByWorkspaceIdOrderByCreatedAtAsc(workspaceId);
         return projects.stream()
@@ -86,8 +103,10 @@ public class WorkspaceController {
                 .orElseThrow(() -> new ResourceNotFoundException("Project not found"));
 
         // Verify membership
-        workspaceMemberRepository.findByWorkspaceIdAndUserId(project.getWorkspace().getId(), userDetails.getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Access denied"));
+        if (userDetails.getSystemRole() != SystemRole.ADMIN) {
+            workspaceMemberRepository.findByWorkspaceIdAndUserId(project.getWorkspace().getId(), userDetails.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Access denied"));
+        }
 
         List<TaskList> lists = taskListRepository.findByProjectIdOrderByPositionAsc(projectId);
 
@@ -118,18 +137,38 @@ public class WorkspaceController {
     public ResponseEntity<Map<String, Object>> createWorkspace(
             @RequestBody Map<String, String> request,
             @AuthenticationPrincipal UserDetailsImpl userDetails) {
-        User user = userRepository.findById(userDetails.getId()).get();
+        if (userDetails.getSystemRole() != SystemRole.ADMIN) {
+            return ResponseEntity.status(403).body(Map.of("message", "Only administrators can create workspaces"));
+        }
+
+        String name = request.get("name");
+        String managerId = request.get("managerId");
+        if (name == null || name.isBlank() || managerId == null || managerId.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Workspace name and manager are required"));
+        }
+
+        User manager;
+        try {
+            manager = userRepository.findById(UUID.fromString(managerId))
+                    .orElseThrow(() -> new ResourceNotFoundException("Manager not found"));
+        } catch (IllegalArgumentException exception) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Manager ID is invalid"));
+        }
+        if (manager.getSystemRole() != SystemRole.MANAGER) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Selected user is not a manager"));
+        }
+
         Workspace workspace = Workspace.builder()
-                .name(request.get("name"))
-                .slug(request.get("name").toLowerCase().replaceAll("\\s+", "-") + "-" + UUID.randomUUID().toString().substring(0, 5))
-                .owner(user)
+                .name(name.trim())
+                .slug(name.trim().toLowerCase().replaceAll("\\s+", "-") + "-" + UUID.randomUUID().toString().substring(0, 5))
+                .owner(manager)
                 .build();
         workspace = workspaceRepository.save(workspace);
 
         WorkspaceMember member = WorkspaceMember.builder()
                 .workspace(workspace)
-                .user(user)
-                .role(Role.OWNER)
+                .user(manager)
+                .role(Role.MANAGER)
                 .build();
         workspaceMemberRepository.save(member);
 
@@ -137,8 +176,25 @@ public class WorkspaceController {
                 "id", workspace.getId(),
                 "name", workspace.getName(),
                 "slug", workspace.getSlug(),
-                "role", "OWNER"
+                "role", "MANAGER",
+                "managerId", manager.getId()
         ));
+    }
+
+    @GetMapping("/admin/managers")
+    public ResponseEntity<?> getManagers(@AuthenticationPrincipal UserDetailsImpl userDetails) {
+        if (userDetails.getSystemRole() != SystemRole.ADMIN) {
+            return ResponseEntity.status(403).body(Map.of("message", "Only administrators can view managers"));
+        }
+
+        return ResponseEntity.ok(userRepository.findBySystemRole(SystemRole.MANAGER).stream()
+                .sorted(java.util.Comparator.comparing(User::getFullName, String.CASE_INSENSITIVE_ORDER))
+                .map(manager -> Map.<String, Object>of(
+                        "id", manager.getId(),
+                        "fullName", manager.getFullName(),
+                        "email", manager.getEmail()
+                ))
+                .toList());
     }
 
     @GetMapping("/workspaces/{workspaceId}/members")
@@ -146,8 +202,11 @@ public class WorkspaceController {
             @PathVariable UUID workspaceId,
             @AuthenticationPrincipal UserDetailsImpl userDetails) {
         
-        workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, userDetails.getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Access denied"));
+        WorkspaceMember currentUserMember = workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, userDetails.getId())
+                .orElse(null);
+        if (userDetails.getSystemRole() != SystemRole.ADMIN && currentUserMember == null) {
+            throw new ResourceNotFoundException("Access denied");
+        }
 
         return workspaceMemberRepository.findByWorkspaceId(workspaceId).stream()
                 .map(m -> Map.<String, Object>of(
@@ -166,9 +225,11 @@ public class WorkspaceController {
             @AuthenticationPrincipal UserDetailsImpl userDetails) {
         // Simple implementation, need proper RBAC check here
         WorkspaceMember currentUserMember = workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, userDetails.getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Access denied"));
+                .orElse(null);
         
-        if (currentUserMember.getRole() != Role.OWNER && currentUserMember.getRole() != Role.ADMIN) {
+        if (userDetails.getSystemRole() != SystemRole.ADMIN
+                && (currentUserMember == null || (currentUserMember.getRole() != Role.OWNER
+                && currentUserMember.getRole() != Role.ADMIN && currentUserMember.getRole() != Role.MANAGER))) {
              return ResponseEntity.status(403).body(Map.of("message", "Require ADMIN or OWNER role"));
         }
 
@@ -180,7 +241,7 @@ public class WorkspaceController {
         WorkspaceMember member = WorkspaceMember.builder()
                 .workspace(workspace)
                 .user(newUser)
-                .role(Role.valueOf(request.getOrDefault("role", "MEMBER")))
+                .role(Role.valueOf(request.getOrDefault("role", "TEAM_MEMBER")))
                 .build();
         workspaceMemberRepository.save(member);
 
@@ -194,9 +255,11 @@ public class WorkspaceController {
             @AuthenticationPrincipal UserDetailsImpl userDetails) {
         
         WorkspaceMember currentUserMember = workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, userDetails.getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Access denied"));
+                .orElse(null);
         
-        if (currentUserMember.getRole() != Role.OWNER && currentUserMember.getRole() != Role.ADMIN) {
+        if (userDetails.getSystemRole() != SystemRole.ADMIN
+                && (currentUserMember == null || (currentUserMember.getRole() != Role.OWNER
+                && currentUserMember.getRole() != Role.ADMIN && currentUserMember.getRole() != Role.MANAGER))) {
              return ResponseEntity.status(403).body(Map.of("message", "Require ADMIN or OWNER role"));
         }
 
@@ -215,16 +278,20 @@ public class WorkspaceController {
             @AuthenticationPrincipal UserDetailsImpl userDetails) {
         
         WorkspaceMember currentUserMember = workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, userDetails.getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Access denied"));
+                .orElse(null);
         
-        if (currentUserMember.getRole() != Role.OWNER && currentUserMember.getRole() != Role.ADMIN) {
+        if (userDetails.getSystemRole() != SystemRole.ADMIN
+                && (currentUserMember == null || (currentUserMember.getRole() != Role.OWNER
+                && currentUserMember.getRole() != Role.ADMIN && currentUserMember.getRole() != Role.MANAGER))) {
              return ResponseEntity.status(403).body(Map.of("message", "Require ADMIN or OWNER role"));
         }
 
         WorkspaceMember memberToRemove = workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Member not found"));
 
-        if (memberToRemove.getRole() == Role.OWNER && currentUserMember.getRole() != Role.OWNER) {
+        if (memberToRemove.getRole() == Role.OWNER
+                && userDetails.getSystemRole() != SystemRole.ADMIN
+                && (currentUserMember == null || currentUserMember.getRole() != Role.OWNER)) {
              return ResponseEntity.status(403).body(Map.of("message", "Only OWNER can remove another OWNER"));
         }
 

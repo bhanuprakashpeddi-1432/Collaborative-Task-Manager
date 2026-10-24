@@ -20,11 +20,14 @@ export function useKanbanDrag(workspaceId: string, boardId: string) {
     },
     onMutate: async ({ taskId, payload }) => {
       await queryClient.cancelQueries({ queryKey: ['tasks', boardId] });
-      const previousTasks = queryClient.getQueryData<Task[]>(['tasks', boardId]);
+      const previousTasks = queryClient.getQueriesData<Task[]>({
+        queryKey: ['tasks', boardId],
+      });
 
       // Optimistic update
-      if (previousTasks) {
-        queryClient.setQueryData<Task[]>(['tasks', boardId], (old) => {
+      queryClient.setQueriesData<Task[]>(
+        { queryKey: ['tasks', boardId] },
+        (old) => {
           if (!old) return old;
           const newPos = payload.previousPosition && payload.nextPosition 
             ? (payload.previousPosition + payload.nextPosition) / 2
@@ -35,15 +38,15 @@ export function useKanbanDrag(workspaceId: string, boardId: string) {
               ? { ...t, listId: payload.targetListId, position: newPos, version: t.version + 1 }
               : t
           );
-        });
-      }
+        }
+      );
 
       return { previousTasks };
     },
-    onError: (_err, _newTodo, context) => {
-      if (context?.previousTasks) {
-        queryClient.setQueryData(['tasks', boardId], context.previousTasks);
-      }
+    onError: (_err, _variables, context) => {
+      context?.previousTasks?.forEach(([queryKey, tasks]) => {
+        queryClient.setQueryData(queryKey, tasks);
+      });
     },
     onSettled: () => {
       // Do not refetch immediately to avoid flashing, WS will sync state if needed,

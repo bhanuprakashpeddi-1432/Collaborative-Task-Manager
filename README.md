@@ -48,7 +48,7 @@ docker run -d --name workcollab-redis -p 6379:6379 redis:7-alpine
 ```
 
 ### 2. Start the Backend
-The backend runs on port `8080` by default.
+The backend runs on port `8081` by default.
 ```bash
 # Using the included Maven wrapper
 ./mvnw spring-boot:run

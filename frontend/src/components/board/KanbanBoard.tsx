@@ -49,8 +49,8 @@ export function KanbanBoard({ workspaceId, boardId, lists, onTaskClick }: Kanban
       });
       return res.data;
     },
-    onSuccess: (newTask) => {
-      queryClient.setQueryData<Task[]>(['tasks', boardId], (old = []) => [...old, newTask]);
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks', boardId] });
       setAddingToList(null);
       setNewTaskTitle('');
     },

@@ -4,11 +4,13 @@ import com.workcollab.entity.Comment;
 import com.workcollab.entity.Notification;
 import com.workcollab.entity.Task;
 import com.workcollab.entity.User;
+import com.workcollab.entity.SystemRole;
 import com.workcollab.exception.ResourceNotFoundException;
 import com.workcollab.repository.CommentRepository;
 import com.workcollab.repository.NotificationRepository;
 import com.workcollab.repository.TaskRepository;
 import com.workcollab.repository.UserRepository;
+import com.workcollab.repository.WorkspaceMemberRepository;
 import com.workcollab.security.UserDetailsImpl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -31,10 +33,14 @@ public class CommentController {
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
     private final NotificationRepository notificationRepository;
+    private final WorkspaceMemberRepository workspaceMemberRepository;
     private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     @GetMapping
-    public List<Map<String, Object>> getComments(@PathVariable UUID taskId) {
+    public List<Map<String, Object>> getComments(
+            @PathVariable UUID taskId,
+            @AuthenticationPrincipal UserDetailsImpl userDetails) {
+        Task task = getAuthorizedTask(taskId, userDetails);
         return commentRepository.findByTaskIdOrderByCreatedAtAsc(taskId).stream()
                 .map(this::mapToDto)
                 .collect(Collectors.toList());
@@ -46,8 +52,7 @@ public class CommentController {
             @RequestBody Map<String, String> request,
             @AuthenticationPrincipal UserDetailsImpl userDetails) {
         
-        Task task = taskRepository.findById(taskId)
-                .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
+        Task task = getAuthorizedTask(taskId, userDetails);
 
         User user = userRepository.getReferenceById(userDetails.getId());
 
@@ -87,6 +92,7 @@ public class CommentController {
 
         Comment comment = commentRepository.findById(commentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Comment not found"));
+        verifyCommentTask(comment, taskId, userDetails);
 
         if (!comment.getUser().getId().equals(userDetails.getId())) {
             return ResponseEntity.status(403).body(Map.of("error", "Not authorized to edit this comment"));
@@ -106,6 +112,7 @@ public class CommentController {
 
         Comment comment = commentRepository.findById(commentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Comment not found"));
+        verifyCommentTask(comment, taskId, userDetails);
 
         if (!comment.getUser().getId().equals(userDetails.getId())) {
             return ResponseEntity.status(403).body(Map.of("error", "Not authorized to delete this comment"));
@@ -145,5 +152,23 @@ public class CommentController {
                 "createdAt", comment.getCreatedAt().toString(),
                 "updatedAt", comment.getUpdatedAt().toString()
         );
+    }
+
+    private Task getAuthorizedTask(UUID taskId, UserDetailsImpl userDetails) {
+        Task task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
+        UUID workspaceId = task.getProject().getWorkspace().getId();
+        if (userDetails.getSystemRole() != SystemRole.ADMIN
+                && !workspaceMemberRepository.existsByWorkspaceIdAndUserId(workspaceId, userDetails.getId())) {
+            throw new ResourceNotFoundException("Task not found or access denied");
+        }
+        return task;
+    }
+
+    private void verifyCommentTask(Comment comment, UUID taskId, UserDetailsImpl userDetails) {
+        if (!comment.getTask().getId().equals(taskId)) {
+            throw new ResourceNotFoundException("Comment not found");
+        }
+        getAuthorizedTask(taskId, userDetails);
     }
 }

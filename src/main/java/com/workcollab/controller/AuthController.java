@@ -4,6 +4,8 @@ import com.workcollab.dto.JwtAuthResponse;
 import com.workcollab.dto.LoginRequest;
 import com.workcollab.security.JwtUtils;
 import com.workcollab.security.UserDetailsImpl;
+import com.workcollab.entity.SystemRole;
+import com.workcollab.entity.Role;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -40,7 +42,8 @@ public class AuthController {
         JwtAuthResponse.UserDto userDto = new JwtAuthResponse.UserDto(
                 userDetails.getId(),
                 userDetails.getUsername(),
-                userDetails.getFullName()
+                userDetails.getFullName(),
+                userDetails.getSystemRole()
         );
 
         return ResponseEntity.ok(new JwtAuthResponse(jwt, refreshToken.getToken(), userDto));
@@ -58,7 +61,8 @@ public class AuthController {
                     return ResponseEntity.ok(new JwtAuthResponse(token, requestRefreshToken, new JwtAuthResponse.UserDto(
                             user.getId(),
                             user.getEmail(),
-                            user.getFullName()
+                            user.getFullName(),
+                            user.getSystemRole()
                     )));
                 })
                 .orElseThrow(() -> new RuntimeException("Refresh token is not in database!"));
@@ -82,6 +86,7 @@ public class AuthController {
                 .email(registerRequest.getEmail())
                 .passwordHash(passwordEncoder.encode(registerRequest.getPassword()))
                 .fullName(registerRequest.getFullName())
+                .systemRole(SystemRole.MANAGER)
                 .build();
 
         user = userRepository.save(user);
@@ -98,7 +103,7 @@ public class AuthController {
         com.workcollab.entity.WorkspaceMember member = com.workcollab.entity.WorkspaceMember.builder()
                 .workspace(workspace)
                 .user(user)
-                .role(com.workcollab.entity.Role.ADMIN)
+                .role(Role.MANAGER)
                 .build();
         workspaceMemberRepository.save(member);
 
@@ -115,7 +120,8 @@ public class AuthController {
         JwtAuthResponse.UserDto userDto = new JwtAuthResponse.UserDto(
                 userDetails.getId(),
                 userDetails.getUsername(),
-                userDetails.getFullName()
+                userDetails.getFullName(),
+                userDetails.getSystemRole()
         );
 
         return ResponseEntity.ok(new JwtAuthResponse(jwt, refreshToken.getToken(), userDto));

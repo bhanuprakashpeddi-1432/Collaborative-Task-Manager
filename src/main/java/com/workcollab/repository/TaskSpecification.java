@@ -24,8 +24,7 @@ public class TaskSpecification {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
-            // Must belong to the board (via list)
-            predicates.add(cb.equal(root.join("list").get("board").get("id"), boardId));
+            predicates.add(cb.equal(root.get("project").get("id"), boardId));
 
             if (priority != null) {
                 predicates.add(cb.equal(root.get("priority"), priority));

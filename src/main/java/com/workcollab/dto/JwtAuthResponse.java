@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 
 import java.util.UUID;
+import com.workcollab.entity.SystemRole;
 
 @Data
 @AllArgsConstructor
@@ -18,5 +19,6 @@ public class JwtAuthResponse {
         private UUID id;
         private String email;
         private String fullName;
+        private SystemRole systemRole;
     }
 }

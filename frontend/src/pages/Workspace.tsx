@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
 import type { Task, TaskList, Board as BoardType } from '@/types';
@@ -8,16 +8,40 @@ import { TaskDetailsModal } from '@/components/board/TaskDetailsModal';
 import { ReportsDashboard } from '@/components/board/ReportsDashboard';
 import { PresenceAvatars } from '@/components/board/PresenceAvatars';
 import { useBoardWebSocket } from '@/hooks/useBoardWebSocket';
-import { LayoutDashboard, LogOut, Loader2, Settings, Briefcase, Inbox, BarChart2, CheckSquare } from 'lucide-react';
+import { LayoutDashboard, LogOut, Loader2, Settings, Briefcase, Inbox, BarChart2, CheckSquare, Plus } from 'lucide-react';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useNavigate } from 'react-router-dom';
 
 export function Workspace() {
   const { logout, user } = useAuthStore();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const isAdmin = user?.systemRole === 'ADMIN';
 
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [activeTab, setActiveTab] = useState('projects');
+  const [workspaceName, setWorkspaceName] = useState('');
+  const [managerId, setManagerId] = useState('');
+
+  const {
+    data: managers = [],
+    isLoading: isLoadingManagers,
+    isError: isManagersError,
+  } = useQuery<{ id: string; fullName: string; email: string }[]>({
+    queryKey: ['admin-managers'],
+    queryFn: async () => (await api.get('/admin/managers')).data,
+    enabled: isAdmin,
+  });
+
+  const createWorkspaceMutation = useMutation({
+    mutationFn: async () => (await api.post('/workspaces', { name: workspaceName, managerId })).data,
+    onSuccess: async (workspace) => {
+      setWorkspaceName('');
+      setManagerId('');
+      await queryClient.invalidateQueries({ queryKey: ['workspaces'] });
+      setSelectedWorkspaceId(workspace.id);
+    },
+  });
 
   // Step 1: Fetch user's workspaces
   const { data: workspaces, isLoading: isLoadingWorkspaces } = useQuery<{ id: string; name: string; slug: string; role: string }[]>({
@@ -28,7 +52,14 @@ export function Workspace() {
     },
   });
 
-  const workspaceId = workspaces?.[0]?.id;
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>();
+  const workspaceId = selectedWorkspaceId ?? workspaces?.[0]?.id;
+
+  useEffect(() => {
+    if (workspaces?.length && !selectedWorkspaceId) {
+      setSelectedWorkspaceId(workspaces[0].id);
+    }
+  }, [workspaces, selectedWorkspaceId]);
 
   // Step 2: Fetch projects in the workspace (formerly boards)
   const { data: projects, isLoading: isLoadingProjects } = useQuery<{ id: string; workspaceId: string; name: string; position: number; createdAt: string }[]>({
@@ -90,8 +121,61 @@ export function Workspace() {
     return (
       <div className="h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-200">
         <div className="text-center bg-white p-10 rounded-3xl shadow-2xl border border-gray-100 max-w-md w-full">
-          <h2 className="text-2xl font-bold text-slate-800 mb-3">Welcome to WorkCollab</h2>
-          <p className="text-slate-500 mb-8">You are not part of any workspace yet. Contact an administrator to get invited.</p>
+          {isAdmin ? (
+            <>
+              <h2 className="text-2xl font-bold text-slate-800 mb-3">Create a workspace</h2>
+              <p className="text-slate-500 mb-6">Create a workspace and assign it to a manager.</p>
+              <form
+                className="space-y-3 text-left"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  createWorkspaceMutation.mutate();
+                }}
+              >
+                <input
+                  value={workspaceName}
+                  onChange={(event) => setWorkspaceName(event.target.value)}
+                  placeholder="Workspace name"
+                  required
+                  className="w-full rounded-xl border border-gray-200 px-4 py-3 outline-none focus:border-indigo-500"
+                />
+                <select
+                  value={managerId}
+                  onChange={(event) => setManagerId(event.target.value)}
+                  required
+                  className="w-full rounded-xl border border-gray-200 px-4 py-3 outline-none focus:border-indigo-500"
+                >
+                  <option value="">
+                    {isLoadingManagers ? 'Loading managers...' : 'Select manager'}
+                  </option>
+                  {managers.map((manager) => (
+                    <option key={manager.id} value={manager.id}>{manager.fullName} ({manager.email})</option>
+                  ))}
+                </select>
+                {isManagersError && (
+                  <p className="text-sm text-red-600">Unable to load the manager list. Please refresh and try again.</p>
+                )}
+                {!isLoadingManagers && !isManagersError && managers.length === 0 && (
+                  <p className="text-sm text-amber-600">No manager accounts are available.</p>
+                )}
+                {createWorkspaceMutation.isError && (
+                  <p className="text-sm text-red-600">Unable to create workspace. Check the name and manager.</p>
+                )}
+                <button
+                  type="submit"
+                  disabled={createWorkspaceMutation.isPending || !workspaceName.trim() || !managerId || managers.length === 0}
+                  className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl font-medium"
+                >
+                  {createWorkspaceMutation.isPending ? 'Creating...' : 'Create workspace'}
+                </button>
+              </form>
+            </>
+          ) : (
+            <>
+              <h2 className="text-2xl font-bold text-slate-800 mb-3">Welcome to WorkCollab</h2>
+              <p className="text-slate-500 mb-8">You are not part of any workspace yet. Contact an administrator to get invited.</p>
+            </>
+          )}
           <button onClick={handleLogout} className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 transition-colors text-white rounded-xl font-medium shadow-lg shadow-indigo-200">
             Back to Login
           </button>
@@ -125,9 +209,66 @@ export function Workspace() {
         <div className="p-4 flex-1 overflow-y-auto">
           <div className="mb-6 px-2">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Workspace</p>
-            <div className="flex items-center justify-between bg-slate-800/50 p-2.5 rounded-xl border border-slate-700/50">
-              <span className="font-medium text-slate-200 truncate">{workspaces?.[0]?.name}</span>
-            </div>
+            <select
+              value={workspaceId ?? ''}
+              onChange={(event) => setSelectedWorkspaceId(event.target.value)}
+              className="w-full bg-slate-800/50 p-2.5 rounded-xl border border-slate-700/50 text-slate-200 font-medium outline-none"
+              aria-label="Select workspace"
+            >
+              {workspaces?.map((workspace) => (
+                <option key={workspace.id} value={workspace.id} className="bg-slate-900">
+                  {workspace.name}
+                </option>
+              ))}
+            </select>
+            {isAdmin && (
+              <details className="mt-3">
+                <summary className="flex cursor-pointer items-center gap-2 text-sm text-indigo-300">
+                  <Plus size={15} /> Add workspace
+                </summary>
+                <form
+                  className="mt-3 space-y-2"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    createWorkspaceMutation.mutate();
+                  }}
+                >
+                  <input
+                    value={workspaceName}
+                    onChange={(event) => setWorkspaceName(event.target.value)}
+                    placeholder="Workspace name"
+                    required
+                    className="w-full rounded-lg bg-slate-800 p-2 text-sm text-slate-100 placeholder:text-slate-500"
+                  />
+                  <select
+                    value={managerId}
+                    onChange={(event) => setManagerId(event.target.value)}
+                    required
+                    className="w-full rounded-lg bg-slate-800 p-2 text-sm text-slate-100"
+                  >
+                    <option value="">
+                      {isLoadingManagers ? 'Loading managers...' : 'Assign manager'}
+                    </option>
+                    {managers.map((manager) => (
+                      <option key={manager.id} value={manager.id}>{manager.fullName} ({manager.email})</option>
+                    ))}
+                  </select>
+                  {isManagersError && (
+                    <p className="text-xs text-red-300">Unable to load managers. Refresh and try again.</p>
+                  )}
+                  {!isLoadingManagers && !isManagersError && managers.length === 0 && (
+                    <p className="text-xs text-amber-300">No manager accounts are available.</p>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={createWorkspaceMutation.isPending || !workspaceName.trim() || !managerId || managers.length === 0}
+                    className="w-full rounded-lg bg-indigo-600 p-2 text-sm text-white disabled:opacity-50"
+                  >
+                    {createWorkspaceMutation.isPending ? 'Creating...' : 'Create workspace'}
+                  </button>
+                </form>
+              </details>
+            )}
           </div>
 
           <nav className="space-y-1">

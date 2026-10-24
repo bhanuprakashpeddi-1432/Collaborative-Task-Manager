@@ -20,7 +20,7 @@ export function useBoardWebSocket(workspaceId: string, boardId: string) {
   useEffect(() => {
     if (!token || !workspaceId || !boardId) return;
 
-    const socketUrl = `http://localhost:8080/ws?token=${token}`;
+    const socketUrl = `http://localhost:8081/ws?token=${token}`;
     
     const client = new Client({
       webSocketFactory: () => new SockJS(socketUrl),

@@ -3,6 +3,8 @@ package com.workcollab.controller;
 import com.workcollab.entity.Project;
 import com.workcollab.entity.Workspace;
 import com.workcollab.entity.WorkspaceMember;
+import com.workcollab.entity.SystemRole;
+import com.workcollab.entity.Role;
 import com.workcollab.exception.ResourceNotFoundException;
 import com.workcollab.repository.ProjectRepository;
 import com.workcollab.repository.WorkspaceMemberRepository;
@@ -31,8 +33,13 @@ public class ProjectController {
             @RequestBody Map<String, String> request,
             @AuthenticationPrincipal UserDetailsImpl userDetails) {
         
-        workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, userDetails.getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Workspace not found or access denied"));
+        if (userDetails.getSystemRole() != SystemRole.ADMIN) {
+            WorkspaceMember member = workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, userDetails.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Workspace not found or access denied"));
+            if (!canManage(member.getRole())) {
+                return ResponseEntity.status(403).body(Map.of("message", "Manager access required"));
+            }
+        }
 
         Workspace workspace = workspaceRepository.findById(workspaceId).get();
 
@@ -59,8 +66,13 @@ public class ProjectController {
             @RequestBody Map<String, String> request,
             @AuthenticationPrincipal UserDetailsImpl userDetails) {
         
-        workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, userDetails.getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Workspace not found or access denied"));
+        if (userDetails.getSystemRole() != SystemRole.ADMIN) {
+            WorkspaceMember member = workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, userDetails.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Workspace not found or access denied"));
+            if (!canManage(member.getRole())) {
+                return ResponseEntity.status(403).body(Map.of("message", "Manager access required"));
+            }
+        }
 
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new ResourceNotFoundException("Project not found"));
@@ -88,15 +100,28 @@ public class ProjectController {
             @PathVariable UUID projectId,
             @AuthenticationPrincipal UserDetailsImpl userDetails) {
         
-        workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, userDetails.getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Workspace not found or access denied"));
+        if (userDetails.getSystemRole() != SystemRole.ADMIN) {
+            WorkspaceMember member = workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, userDetails.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Workspace not found or access denied"));
+            if (!canManage(member.getRole())) {
+                return ResponseEntity.status(403).body(Map.of("message", "Manager access required"));
+            }
+        }
 
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new ResourceNotFoundException("Project not found"));
+
+        if (!project.getWorkspace().getId().equals(workspaceId)) {
+            throw new ResourceNotFoundException("Project not found in this workspace");
+        }
 
         project.setStatus("ARCHIVED");
         projectRepository.save(project);
 
         return ResponseEntity.ok(Map.of("message", "Project archived successfully"));
+    }
+
+    private boolean canManage(Role role) {
+        return role == Role.OWNER || role == Role.ADMIN || role == Role.MANAGER;
     }
 }
