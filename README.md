@@ -9,7 +9,6 @@ WorkCollab is an enterprise-grade collaborative task management application desi
 - **JWT-Based Security**: Secure authentication and Role-Based Access Control (RBAC) down to the workspace level.
 - **Production-Ready Docker Stack**: Fully containerized with multi-stage Dockerfiles, NGINX reverse proxy, and Docker Compose orchestration.
 - **Automated Testing Infrastructure**: Comprehensive integration tests leveraging real PostgreSQL and Redis instances via Testcontainers.
-- **CI/CD Pipeline**: GitHub Actions workflow for automated linting, building, testing, and Docker image verification.
 
 ## 🛠️ Tech Stack
 
@@ -44,7 +43,7 @@ To run the application locally for active development, you'll run the backend an
 ### 1. Start Infrastructure (Databases)
 The backend requires PostgreSQL and Redis. You can quickly spin these up using Docker:
 ```bash
-docker run -d --name workcollab-postgres -p 5433:5432 -e POSTGRES_DB=workcollab -e POSTGRES_USER=workcollab -e POSTGRES_PASSWORD=changeme postgres:16-alpine
+docker run -d --name workcollab-postgres -p 5432:5432 -e POSTGRES_DB=workcollab -e POSTGRES_USER=workcollab -e POSTGRES_PASSWORD=changeme postgres:16-alpine
 docker run -d --name workcollab-redis -p 6379:6379 redis:7-alpine
 ```
 
@@ -110,20 +109,10 @@ To run the tests (Docker must be running):
 
 ---
 
-## 🏗️ CI/CD Pipeline
-
-The project includes a GitHub Actions workflow (`.github/workflows/ci.yml`) that triggers on pushes and PRs to `main`. It automatically:
-1. Runs the backend test suite using Testcontainers.
-2. Lints and builds the Vite frontend.
-3. Performs a dry-run build of both Docker images to verify containerization.
-
----
-
 ## 📁 Project Structure
 
 ```
 WorkCollab/
-├── .github/workflows/   # CI/CD pipelines
 ├── frontend/            # React + Vite frontend source code
 │   ├── src/             # UI Components, Hooks, API services
 │   ├── Dockerfile       # Multi-stage NGINX image

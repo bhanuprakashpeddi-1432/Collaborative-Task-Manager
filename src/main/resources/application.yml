@@ -8,7 +8,7 @@ spring:
   application:
     name: workcollab
   datasource:
-    url: jdbc:postgresql://localhost:5433/workcollab
+    url: jdbc:postgresql://localhost:5432/workcollab
     username: workcollab
     password: changeme
     driver-class-name: org.postgresql.Driver
