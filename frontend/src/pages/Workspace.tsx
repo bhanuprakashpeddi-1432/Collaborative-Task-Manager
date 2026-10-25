@@ -22,6 +22,11 @@ export function Workspace() {
   const [activeTab, setActiveTab] = useState('projects');
   const [workspaceName, setWorkspaceName] = useState('');
   const [managerId, setManagerId] = useState('');
+  const [projectName, setProjectName] = useState('');
+  const [projectDescription, setProjectDescription] = useState('');
+  const [isProjectFormOpen, setIsProjectFormOpen] = useState(false);
+  const isManager = user?.systemRole === 'MANAGER';
+  const [selectedProjectId, setSelectedProjectId] = useState<string>();
 
   const {
     data: managers = [],
@@ -43,6 +48,20 @@ export function Workspace() {
     },
   });
 
+  const createProjectMutation = useMutation({
+    mutationFn: async () => (await api.post(`/workspaces/${workspaceId}/projects`, {
+      name: projectName,
+      description: projectDescription,
+    })).data,
+    onSuccess: async (project) => {
+      setProjectName('');
+      setProjectDescription('');
+      setIsProjectFormOpen(false);
+      await queryClient.invalidateQueries({ queryKey: ['projects', workspaceId] });
+      setSelectedProjectId(project.id);
+    },
+  });
+
   // Step 1: Fetch user's workspaces
   const { data: workspaces, isLoading: isLoadingWorkspaces } = useQuery<{ id: string; name: string; slug: string; role: string }[]>({
     queryKey: ['workspaces'],
@@ -61,6 +80,10 @@ export function Workspace() {
     }
   }, [workspaces, selectedWorkspaceId]);
 
+  useEffect(() => {
+    setSelectedProjectId(undefined);
+  }, [workspaceId]);
+
   // Step 2: Fetch projects in the workspace (formerly boards)
   const { data: projects, isLoading: isLoadingProjects } = useQuery<{ id: string; workspaceId: string; name: string; position: number; createdAt: string }[]>({
     queryKey: ['projects', workspaceId],
@@ -78,10 +101,16 @@ export function Workspace() {
     enabled: !!workspaceId,
   });
 
-  const projectId = projects?.[0]?.id;
+  const projectId = selectedProjectId ?? projects?.[0]?.id;
+
+  useEffect(() => {
+    if (projects?.length && (!selectedProjectId || !projects.some((project) => project.id === selectedProjectId))) {
+      setSelectedProjectId(projects[0].id);
+    }
+  }, [projects, selectedProjectId]);
 
   // Step 3: Fetch project details and lists
-  const { data: projectInfo, isLoading: isLoadingProject } = useQuery<{ board: BoardType; lists: TaskList[] }>({
+  const { data: projectInfo, isLoading: isLoadingProject } = useQuery<{ project: BoardType; lists: TaskList[] }>({
     queryKey: ['project', projectId],
     queryFn: async () => {
       // Changed to support new endpoints, fallback to old if not found
@@ -312,9 +341,32 @@ export function Workspace() {
         <header className="h-16 bg-white/80 backdrop-blur-md border-b border-gray-200 px-6 flex items-center justify-between shrink-0 sticky top-0 z-10">
           <div>
             {activeTab === 'projects' && (
-              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                {projectInfo?.board?.name || 'Project Dashboard'}
-              </h2>
+              <div className="flex items-center gap-3">
+                <h2 className="text-xl font-bold text-gray-800">Project Dashboard</h2>
+                {projects && projects.length > 0 && (
+                  <select
+                    value={projectId ?? ''}
+                    onChange={(event) => setSelectedProjectId(event.target.value)}
+                    className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-700 outline-none focus:border-indigo-500"
+                    aria-label="Select project"
+                  >
+                    {projects.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {isManager && workspaceId && (
+                  <button
+                    type="button"
+                    onClick={() => setIsProjectFormOpen((open) => !open)}
+                    className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
+                  >
+                    {isProjectFormOpen ? 'Cancel' : 'New project'}
+                  </button>
+                )}
+              </div>
             )}
             {activeTab !== 'projects' && (
               <h2 className="text-xl font-bold text-gray-800 capitalize">{activeTab}</h2>
@@ -328,6 +380,41 @@ export function Workspace() {
 
         {/* Dashboard Content */}
         <main className="flex-1 overflow-hidden relative">
+          {isProjectFormOpen && isManager && workspaceId && (
+            <form
+              className="absolute right-6 top-4 z-10 w-80 space-y-3 rounded-xl border border-gray-200 bg-white p-4 shadow-lg"
+              onSubmit={(event) => {
+                event.preventDefault();
+                createProjectMutation.mutate();
+              }}
+            >
+              <h3 className="font-semibold text-gray-800">Create project</h3>
+              <input
+                value={projectName}
+                onChange={(event) => setProjectName(event.target.value)}
+                placeholder="Project name"
+                required
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+              />
+              <textarea
+                value={projectDescription}
+                onChange={(event) => setProjectDescription(event.target.value)}
+                placeholder="Description (optional)"
+                rows={3}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+              />
+              {createProjectMutation.isError && (
+                <p className="text-sm text-red-600">Unable to create the project.</p>
+              )}
+              <button
+                type="submit"
+                disabled={createProjectMutation.isPending || !projectName.trim()}
+                className="w-full rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+              >
+                {createProjectMutation.isPending ? 'Creating...' : 'Create project'}
+              </button>
+            </form>
+          )}
           {activeTab === 'projects' ? (
             projectInfo ? (
               <KanbanBoard 

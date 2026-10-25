@@ -166,6 +166,7 @@ public class DataSeeder implements CommandLineRunner {
         }
 
         seedDemoAccounts();
+        ensureProjectLists();
     }
 
     private void seedDemoAccounts() {
@@ -228,5 +229,17 @@ public class DataSeeder implements CommandLineRunner {
         workspaceMemberRepository
                 .findByUserIdAndWorkspaceOwnerId(manager2.getId(), manager1.getId())
                 .forEach(workspaceMemberRepository::delete);
+    }
+
+    private void ensureProjectLists() {
+        projectRepository.findAll().forEach(project -> {
+            if (taskListRepository.findByProjectIdOrderByPositionAsc(project.getId()).isEmpty()) {
+                taskListRepository.saveAll(java.util.List.of(
+                        TaskList.builder().project(project).name("To Do").position(1.0).build(),
+                        TaskList.builder().project(project).name("In Progress").position(2.0).build(),
+                        TaskList.builder().project(project).name("Done").position(3.0).build()
+                ));
+            }
+        });
     }
 }
