@@ -38,14 +38,15 @@ export function KanbanBoard({ workspaceId, boardId, lists, onTaskClick }: Kanban
   // State for new task creation per list
   const [addingToList, setAddingToList] = useState<string | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [newTaskPriority, setNewTaskPriority] = useState<'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'>('MEDIUM');
 
   const createTaskMutation = useMutation({
-    mutationFn: async ({ listId, title }: { listId: string; title: string }) => {
+    mutationFn: async ({ listId, title, priority }: { listId: string; title: string; priority: typeof newTaskPriority }) => {
       const res = await api.post(`/projects/${boardId}/tasks?workspaceId=${workspaceId}`, {
         listId,
         projectId: boardId,
         title,
-        priority: 'MEDIUM',
+        priority,
       });
       return res.data;
     },
@@ -53,6 +54,7 @@ export function KanbanBoard({ workspaceId, boardId, lists, onTaskClick }: Kanban
       queryClient.invalidateQueries({ queryKey: ['tasks', boardId] });
       setAddingToList(null);
       setNewTaskTitle('');
+      setNewTaskPriority('MEDIUM');
     },
     onError: () => {
       alert('Failed to create task. Please try again.');
@@ -61,7 +63,7 @@ export function KanbanBoard({ workspaceId, boardId, lists, onTaskClick }: Kanban
 
   const handleCreateTask = (listId: string) => {
     if (!newTaskTitle.trim()) return;
-    createTaskMutation.mutate({ listId, title: newTaskTitle.trim() });
+    createTaskMutation.mutate({ listId, title: newTaskTitle.trim(), priority: newTaskPriority });
   };
 
   return (
@@ -145,6 +147,17 @@ export function KanbanBoard({ workspaceId, boardId, lists, onTaskClick }: Kanban
                         }
                       }}
                     />
+                    <select
+                      value={newTaskPriority}
+                      onChange={(e) => setNewTaskPriority(e.target.value as typeof newTaskPriority)}
+                      className="w-full rounded-md border border-gray-300 p-2 text-sm outline-none focus:border-blue-500"
+                      aria-label="Task priority"
+                    >
+                      <option value="LOW">Low priority</option>
+                      <option value="MEDIUM">Medium priority</option>
+                      <option value="HIGH">High priority</option>
+                      <option value="URGENT">Urgent priority</option>
+                    </select>
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleCreateTask(list.id)}

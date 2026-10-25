@@ -7,6 +7,10 @@ import com.workcollab.dto.TaskMoveRequest;
 import com.workcollab.dto.TaskUpdateRequest;
 import com.workcollab.security.UserDetailsImpl;
 import com.workcollab.entity.Project;
+import com.workcollab.entity.Role;
+import com.workcollab.entity.SystemRole;
+import com.workcollab.entity.WorkspaceMember;
+import com.workcollab.repository.WorkspaceMemberRepository;
 import com.workcollab.exception.ResourceNotFoundException;
 import com.workcollab.repository.ProjectRepository;
 import com.workcollab.repository.TaskRepository;
@@ -29,16 +33,18 @@ public class TaskController {
     private final TaskService taskService;
     private final ProjectRepository projectRepository;
     private final TaskRepository taskRepository;
+    private final WorkspaceMemberRepository workspaceMemberRepository;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("@workspaceSecurity.hasAccess(T(java.util.UUID).fromString(#workspaceId), 'MEMBER')")
+    @PreAuthorize("@workspaceSecurity.hasAccess(T(java.util.UUID).fromString(#workspaceId), 'MANAGER')")
     public TaskDto createTask(
             @PathVariable UUID projectId,
             @RequestParam("workspaceId") String workspaceId, // Required to check RBAC
             @Valid @RequestBody TaskCreateRequest request,
             @AuthenticationPrincipal UserDetailsImpl userDetails) {
         verifyProjectWorkspace(projectId, workspaceId);
+        verifyAssignee(request.getAssignedToId(), UUID.fromString(workspaceId));
         return taskService.createTask(projectId, request, userDetails.getId());
     }
 
@@ -86,8 +92,12 @@ public class TaskController {
     public Page<TaskDto> getTasks(
             @PathVariable UUID projectId,
             @RequestParam("workspaceId") String workspaceId,
-            TaskFilterRequest filterRequest) {
+            TaskFilterRequest filterRequest,
+            @AuthenticationPrincipal UserDetailsImpl userDetails) {
         verifyProjectWorkspace(projectId, workspaceId);
+        if (userDetails.getSystemRole() == SystemRole.TEAM_MEMBER) {
+            filterRequest.setAssignedToId(userDetails.getId());
+        }
         return taskService.getTasks(projectId, filterRequest);
     }
 
@@ -111,6 +121,16 @@ public class TaskController {
                 .map(task -> task.getProject().getId().equals(projectId))
                 .orElse(false)) {
             throw new ResourceNotFoundException("Task not found in this project");
+        }
+    }
+
+    private void verifyAssignee(UUID assigneeId, UUID workspaceId) {
+        if (assigneeId != null) {
+            WorkspaceMember member = workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, assigneeId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Assignee is not a member of this workspace"));
+            if (member.getRole() != Role.TEAM_MEMBER) {
+                throw new ResourceNotFoundException("Tasks can only be assigned to team members");
+            }
         }
     }
 }

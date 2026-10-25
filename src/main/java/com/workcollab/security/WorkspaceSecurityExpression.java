@@ -34,6 +34,7 @@ public class WorkspaceSecurityExpression {
                         case "ADMIN" -> userRole == Role.ADMIN || userRole == Role.OWNER || userRole == Role.MANAGER;
                         case "MEMBER" -> userRole == Role.ADMIN || userRole == Role.OWNER
                                 || userRole == Role.MANAGER || userRole == Role.MEMBER || userRole == Role.TEAM_MEMBER;
+                        case "MANAGER" -> userRole == Role.MANAGER;
                         case "VIEWER" -> true; // Any member can view
                         default -> false;
                     };
