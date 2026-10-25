@@ -9,12 +9,13 @@ interface ReportsDashboardProps {
 }
 
 export function ReportsDashboard({ workspaceId, projectId }: ReportsDashboardProps) {
-  const { data: tasks = [], isLoading } = useQuery<Task[]>({
-    queryKey: ['tasks', projectId],
+  const { data: tasks = [], isLoading, isError } = useQuery<Task[]>({
+    queryKey: ['report-tasks', workspaceId, projectId],
     queryFn: async () => {
       const res = await api.get(`/projects/${projectId}/tasks?workspaceId=${workspaceId}&size=1000`);
       return res.data.content || res.data;
     },
+    enabled: !!workspaceId && !!projectId,
   });
 
   if (isLoading) {
@@ -25,16 +26,34 @@ export function ReportsDashboard({ workspaceId, projectId }: ReportsDashboardPro
     );
   }
 
+  if (isError) {
+    return (
+      <div className="h-full flex items-center justify-center p-6">
+        <p className="text-red-600">Unable to load project reports. Please try again.</p>
+      </div>
+    );
+  }
+
   // Analytics Calculations
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter(t => t.status === 'DONE').length;
-  const inProgressTasks = tasks.filter(t => t.status === 'IN_PROGRESS' || t.status === 'IN_REVIEW').length;
+  const inProgressTasks = tasks.filter(t => ['IN_PROGRESS', 'IN_REVIEW'].includes(t.status)).length;
+  const blockedTasks = tasks.filter(t => t.status === 'BLOCKED').length;
+  const todoTasks = tasks.filter(t => ['BACKLOG', 'TODO'].includes(t.status)).length;
   const urgentTasks = tasks.filter(t => t.priority === 'URGENT').length;
-  
+  const now = Date.now();
+  const overdueTasks = tasks.filter(t =>
+    t.dueDate && new Date(t.dueDate).getTime() < now && t.status !== 'DONE'
+  ).length;
   const totalEstimatedHours = tasks.reduce((sum, t) => sum + (t.estimatedHours || 0), 0);
   const totalActualHours = tasks.reduce((sum, t) => sum + (t.actualHours || 0), 0);
-  
+  const averageProgress = totalTasks > 0
+    ? Math.round(tasks.reduce((sum, task) => sum + (task.progress || 0), 0) / totalTasks)
+    : 0;
   const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+  const timeUsageRate = totalEstimatedHours > 0
+    ? Math.round((totalActualHours / totalEstimatedHours) * 100)
+    : 0;
 
   return (
     <div className="p-8 h-full overflow-y-auto bg-slate-50">
@@ -92,6 +111,20 @@ export function ReportsDashboard({ workspaceId, projectId }: ReportsDashboardPro
 
         </div>
 
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          {[
+            ['Average Progress', `${averageProgress}%`],
+            ['To Do', todoTasks],
+            ['Blocked', blockedTasks],
+            ['Overdue', overdueTasks],
+          ].map(([label, value]) => (
+            <div key={label} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+              <p className="text-xs font-semibold uppercase text-slate-500">{label}</p>
+              <p className="mt-2 text-3xl font-bold text-slate-800">{value}</p>
+            </div>
+          ))}
+        </div>
+
         {/* Detailed Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           
@@ -106,7 +139,7 @@ export function ReportsDashboard({ workspaceId, projectId }: ReportsDashboardPro
                   <span className="font-bold text-slate-800">{totalEstimatedHours}h</span>
                 </div>
                 <div className="w-full bg-slate-100 rounded-full h-3">
-                  <div className="bg-indigo-400 h-3 rounded-full" style={{ width: '100%' }}></div>
+                  <div className="bg-indigo-400 h-3 rounded-full" style={{ width: `${totalEstimatedHours > 0 ? Math.min(100, (totalEstimatedHours / Math.max(totalEstimatedHours, totalActualHours, 1)) * 100) : 0}%` }}></div>
                 </div>
               </div>
 
@@ -117,13 +150,15 @@ export function ReportsDashboard({ workspaceId, projectId }: ReportsDashboardPro
                 </div>
                 <div className="w-full bg-slate-100 rounded-full h-3">
                   <div className={`h-3 rounded-full ${totalActualHours > totalEstimatedHours ? 'bg-red-500' : 'bg-emerald-500'}`} 
-                       style={{ width: `${Math.min(100, totalEstimatedHours ? (totalActualHours/totalEstimatedHours)*100 : 0)}%` }}></div>
+                       style={{ width: `${Math.min(100, timeUsageRate)}%` }}></div>
                 </div>
               </div>
               
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
                 <p className="text-sm text-slate-600 text-center">
-                  {totalActualHours > totalEstimatedHours 
+                  {totalEstimatedHours === 0
+                    ? <span className="text-slate-600 font-medium">No estimated time has been recorded.</span>
+                    : totalActualHours > totalEstimatedHours
                     ? <span className="text-red-600 font-medium">Project is currently over time budget.</span>
                     : <span className="text-emerald-600 font-medium">Project is tracking well within time budget.</span>}
                 </p>
