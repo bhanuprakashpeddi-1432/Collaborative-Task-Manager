@@ -51,10 +51,6 @@ export function ReportsDashboard({ workspaceId, projectId }: ReportsDashboardPro
     ? Math.round(tasks.reduce((sum, task) => sum + (task.progress || 0), 0) / totalTasks)
     : 0;
   const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-  const timeUsageRate = totalEstimatedHours > 0
-    ? Math.round((totalActualHours / totalEstimatedHours) * 100)
-    : 0;
-
   return (
     <div className="p-8 h-full overflow-y-auto bg-slate-50">
       <div className="max-w-6xl mx-auto space-y-8">
@@ -150,7 +146,7 @@ export function ReportsDashboard({ workspaceId, projectId }: ReportsDashboardPro
                 </div>
                 <div className="w-full bg-slate-100 rounded-full h-3">
                   <div className={`h-3 rounded-full ${totalActualHours > totalEstimatedHours ? 'bg-red-500' : 'bg-emerald-500'}`} 
-                       style={{ width: `${Math.min(100, timeUsageRate)}%` }}></div>
+                       style={{ width: `${totalActualHours > 0 ? Math.min(100, (totalActualHours / Math.max(totalEstimatedHours, totalActualHours, 1)) * 100) : 0}%` }}></div>
                 </div>
               </div>
               

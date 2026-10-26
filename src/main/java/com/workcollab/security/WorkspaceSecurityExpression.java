@@ -3,6 +3,7 @@ package com.workcollab.security;
 import com.workcollab.entity.Role;
 import com.workcollab.entity.SystemRole;
 import com.workcollab.repository.WorkspaceMemberRepository;
+import com.workcollab.repository.TaskRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
@@ -14,6 +15,13 @@ import java.util.UUID;
 public class WorkspaceSecurityExpression {
 
     private final WorkspaceMemberRepository workspaceMemberRepository;
+    private final TaskRepository taskRepository;
+
+    public boolean hasTaskAccess(UUID taskId, String requiredRole) {
+        return taskRepository.findById(taskId)
+                .map(task -> hasAccess(task.getProject().getWorkspace().getId(), requiredRole))
+                .orElse(false);
+    }
 
     public boolean hasAccess(UUID workspaceId, String requiredRole) {
         Authentication authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();

@@ -32,6 +32,8 @@ export function Workspace() {
   const [taskListId, setTaskListId] = useState('');
   const [taskAssigneeId, setTaskAssigneeId] = useState('');
   const [selectedProjectId, setSelectedProjectId] = useState<string>();
+  const [workspaceSettingsName, setWorkspaceSettingsName] = useState('');
+  const [memberEmail, setMemberEmail] = useState('');
 
   const {
     data: managers = [],
@@ -136,10 +138,38 @@ export function Workspace() {
     enabled: !!taskProjectId && activeTab === 'tasks',
   });
 
-  const { data: workspaceMembers = [] } = useQuery<{ id: string; fullName: string; email: string; role: string }[]>({
+  const { data: workspaceMembers = [], isError: isWorkspaceMembersError } = useQuery<{ id: string; fullName: string; email: string; role: string }[]>({
     queryKey: ['workspace-members', workspaceId],
     queryFn: async () => (await api.get(`/workspaces/${workspaceId}/members`)).data,
-    enabled: !!workspaceId && activeTab === 'tasks' && isManager,
+    enabled: !!workspaceId && (activeTab === 'tasks' || activeTab === 'settings'),
+  });
+
+  const selectedWorkspace = workspaces?.find((workspace) => workspace.id === workspaceId);
+  const canManageWorkspace = isAdmin || (isManager && selectedWorkspace?.role === 'MANAGER');
+
+  useEffect(() => {
+    setWorkspaceSettingsName(selectedWorkspace?.name ?? '');
+  }, [selectedWorkspace?.id, selectedWorkspace?.name]);
+
+  const updateWorkspaceMutation = useMutation({
+    mutationFn: async () => (await api.put(`/workspaces/${workspaceId}`, { name: workspaceSettingsName.trim() })).data,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['workspaces'] }),
+  });
+
+  const addMemberMutation = useMutation({
+    mutationFn: async () => (await api.post(`/workspaces/${workspaceId}/members`, {
+      email: memberEmail.trim(),
+      role: 'TEAM_MEMBER',
+    })).data,
+    onSuccess: async () => {
+      setMemberEmail('');
+      await queryClient.invalidateQueries({ queryKey: ['workspace-members', workspaceId] });
+    },
+  });
+
+  const removeMemberMutation = useMutation({
+    mutationFn: async (memberId: string) => (await api.delete(`/workspaces/${workspaceId}/members/${memberId}`)).data,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['workspace-members', workspaceId] }),
   });
 
   const { data: myTasks = [], isLoading: isLoadingMyTasks } = useQuery<Task[]>({
@@ -581,6 +611,89 @@ export function Workspace() {
                 Select a project first to view analytics.
               </div>
             )
+          ) : activeTab === 'settings' ? (
+            <div className="h-full overflow-y-auto p-6">
+              <div className="mx-auto max-w-4xl space-y-6">
+                <section className="rounded-xl border border-stone-200 bg-white p-6 shadow-sm">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-teal-700">Workspace settings</p>
+                  <h3 className="mt-1 text-xl font-semibold text-teal-950">{selectedWorkspace?.name}</h3>
+                  <p className="mt-1 text-sm text-stone-500">
+                    {isAdmin ? 'Administrator: manage workspace settings and members.' :
+                      isManager ? 'Manager: manage your assigned workspace and team members.' :
+                      'Team member: view workspace information.'}
+                  </p>
+                  {canManageWorkspace ? (
+                    <form className="mt-5 flex flex-col gap-3 sm:flex-row" onSubmit={(event) => {
+                      event.preventDefault();
+                      updateWorkspaceMutation.mutate();
+                    }}>
+                      <input
+                        value={workspaceSettingsName}
+                        onChange={(event) => setWorkspaceSettingsName(event.target.value)}
+                        required
+                        className="flex-1 rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none focus:border-teal-800"
+                        aria-label="Workspace name"
+                      />
+                      <button type="submit" disabled={updateWorkspaceMutation.isPending || !workspaceSettingsName.trim()} className="rounded-lg bg-teal-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+                        {updateWorkspaceMutation.isPending ? 'Saving...' : 'Save changes'}
+                      </button>
+                    </form>
+                  ) : (
+                    <p className="mt-5 rounded-lg bg-stone-50 p-3 text-sm text-stone-600">Workspace name: {selectedWorkspace?.name}</p>
+                  )}
+                  {updateWorkspaceMutation.isError && <p className="mt-3 text-sm text-red-600">Unable to update workspace settings.</p>}
+                </section>
+
+                <section className="rounded-xl border border-stone-200 bg-white p-6 shadow-sm">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-teal-700">Workspace members</p>
+                  <h3 className="mt-1 text-xl font-semibold text-teal-950">
+                    {isWorkspaceMembersError ? 'Unable to load members' : `${workspaceMembers.length} member${workspaceMembers.length === 1 ? '' : 's'}`}
+                  </h3>
+                  {canManageWorkspace && (
+                    <form className="mt-5 flex flex-col gap-3 sm:flex-row" onSubmit={(event) => {
+                      event.preventDefault();
+                      addMemberMutation.mutate();
+                    }}>
+                      <input
+                        type="email"
+                        value={memberEmail}
+                        onChange={(event) => setMemberEmail(event.target.value)}
+                        required
+                        placeholder="Team member email"
+                        className="flex-1 rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none focus:border-teal-800"
+                      />
+                      <button type="submit" disabled={addMemberMutation.isPending || !memberEmail.trim()} className="rounded-lg bg-teal-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+                        {addMemberMutation.isPending ? 'Adding...' : 'Add team member'}
+                      </button>
+                    </form>
+                  )}
+                  {(addMemberMutation.isError || removeMemberMutation.isError) && (
+                    <p className="mt-3 text-sm text-red-600">Unable to update members. Verify the email and permissions.</p>
+                  )}
+                  {isWorkspaceMembersError && (
+                    <p className="mt-3 text-sm text-red-600">Unable to load workspace members. Check your access and try again.</p>
+                  )}
+                  <div className="mt-4 divide-y divide-stone-100">
+                    {!isWorkspaceMembersError && workspaceMembers.map((member) => (
+                      <div key={member.id} className="flex items-center justify-between gap-4 py-3">
+                        <div>
+                          <p className="font-medium text-stone-800">{member.fullName}</p>
+                          <p className="text-sm text-stone-500">{member.email}</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-800">{member.role}</span>
+                          {canManageWorkspace && member.id !== user?.id && member.role === 'TEAM_MEMBER' && (
+                            <button type="button" onClick={() => removeMemberMutation.mutate(member.id)} disabled={removeMemberMutation.isPending} className="text-xs font-medium text-red-600 hover:text-red-800 disabled:opacity-50">
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              </div>
+            </div>
           ) : (
             <div className="h-full flex items-center justify-center">
               <div className="flex flex-col items-center text-center text-stone-400">

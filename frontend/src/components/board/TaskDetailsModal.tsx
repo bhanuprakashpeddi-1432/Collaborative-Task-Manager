@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
-import { X, AlertTriangle, Save, Loader2, Trash2, Clock, CheckCircle2, MessageSquare, Send } from 'lucide-react';
+import { X, AlertTriangle, Save, Loader2, Trash2, Clock, CheckCircle2, MessageSquare, Send, History } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { Task, Comment } from '@/types';
+import type { Task, TaskActivity, Comment } from '@/types';
 import { useAuthStore } from '@/store/useAuthStore';
 
 
@@ -52,6 +52,11 @@ export function TaskDetailsModal({ workspaceId, boardId: projectId, task, onClos
     }
   });
 
+  const { data: activities = [], isLoading: isLoadingActivities } = useQuery<TaskActivity[]>({
+    queryKey: ['task-activity', task.id],
+    queryFn: async () => (await api.get(`/tasks/${task.id}/activity`)).data,
+  });
+
   useEffect(() => {
     sendHeartbeat(task.id, isEditing ? 'EDITING' : 'VIEWING');
     return () => {
@@ -78,6 +83,7 @@ export function TaskDetailsModal({ workspaceId, boardId: projectId, task, onClos
     onSuccess: (updatedTask) => {
       setIsEditing(false);
       setConflictError(null);
+      queryClient.invalidateQueries({ queryKey: ['task-activity', task.id] });
       queryClient.setQueryData<Task[]>(['tasks', projectId], (old) => 
         old?.map(t => t.id === updatedTask.id ? updatedTask : t)
       );
@@ -201,7 +207,7 @@ export function TaskDetailsModal({ workspaceId, boardId: projectId, task, onClos
             {/* Comments Feed */}
             <div>
                <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-                 <MessageSquare size={16} /> Activity & Comments
+                 <MessageSquare size={16} /> Comments
                </h3>
                
                <div className="space-y-4 mb-6">
@@ -215,6 +221,7 @@ export function TaskDetailsModal({ workspaceId, boardId: projectId, task, onClos
                         <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-500 flex items-center justify-center text-white font-bold shadow-sm shrink-0 text-sm">
                           {c.userName.charAt(0)}
                         </div>
+
                         <div className="flex-1 bg-slate-50 border border-slate-100 rounded-xl p-3">
                           <div className="flex justify-between items-baseline mb-1">
                             <span className="font-semibold text-sm text-slate-800">{c.userName}</span>
@@ -224,6 +231,43 @@ export function TaskDetailsModal({ workspaceId, boardId: projectId, task, onClos
                         </div>
                      </div>
                    ))
+                 )}
+               </div>
+
+               <div className="mt-8">
+                 <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
+                   <History size={16} /> Audit history
+                 </h3>
+                 {isLoadingActivities ? (
+                   <p className="text-slate-400 text-sm">Loading history...</p>
+                 ) : activities.length === 0 ? (
+                   <p className="text-slate-400 text-sm italic">No changes recorded yet.</p>
+                 ) : (
+                   <div className="space-y-3">
+                     {activities.map(activity => {
+                       let detail: { field?: string; value?: string } = {};
+                       try { detail = JSON.parse(activity.details); } catch { /* Older activity entries may contain plain JSON. */ }
+                       const labels: Record<string, string> = {
+                         DESCRIPTION_CHANGED: 'changed the description',
+                         STATUS_CHANGED: `changed status to ${detail.value ?? 'a new status'}`,
+                         PRIORITY_CHANGED: `changed priority to ${detail.value ?? 'a new priority'}`,
+                         TASK_CREATED: 'created the task',
+                         TASK_MOVED: 'moved the task',
+                         TASK_UPDATED: 'updated the task',
+                       };
+                       return (
+                         <div key={activity.id} className="flex gap-3 text-sm">
+                           <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-semibold shrink-0">
+                             {activity.userName.charAt(0)}
+                           </div>
+                           <div className="min-w-0">
+                             <p className="text-slate-700"><span className="font-semibold">{activity.userName}</span> {labels[activity.actionType] ?? 'updated the task'}.</p>
+                             <p className="text-xs text-slate-400 mt-0.5">{new Date(activity.createdAt).toLocaleString()}</p>
+                           </div>
+                         </div>
+                       );
+                     })}
+                   </div>
                  )}
                </div>
 

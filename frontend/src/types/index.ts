@@ -22,6 +22,15 @@ export interface Task {
   updatedAt: string;
 }
 
+export interface TaskActivity {
+  id: string;
+  userId: string | null;
+  userName: string;
+  actionType: string;
+  details: string;
+  createdAt: string;
+}
+
 export interface TaskList {
   id: string;
   boardId: string;

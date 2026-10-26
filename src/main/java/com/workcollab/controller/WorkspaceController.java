@@ -223,25 +223,29 @@ public class WorkspaceController {
             @PathVariable UUID workspaceId,
             @RequestBody Map<String, String> request,
             @AuthenticationPrincipal UserDetailsImpl userDetails) {
-        // Simple implementation, need proper RBAC check here
-        WorkspaceMember currentUserMember = workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, userDetails.getId())
-                .orElse(null);
-        
-        if (userDetails.getSystemRole() != SystemRole.ADMIN
-                && (currentUserMember == null || (currentUserMember.getRole() != Role.OWNER
-                && currentUserMember.getRole() != Role.ADMIN && currentUserMember.getRole() != Role.MANAGER))) {
+        if (!canManageWorkspace(workspaceId, userDetails)) {
              return ResponseEntity.status(403).body(Map.of("message", "Require ADMIN or OWNER role"));
         }
 
         User newUser = userRepository.findByEmail(request.get("email"))
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        Workspace workspace = workspaceRepository.findById(workspaceId).get();
+        Workspace workspace = workspaceRepository.findById(workspaceId)
+                .orElseThrow(() -> new ResourceNotFoundException("Workspace not found"));
+        Role requestedRole;
+        try {
+            requestedRole = Role.valueOf(request.getOrDefault("role", "TEAM_MEMBER"));
+        } catch (IllegalArgumentException exception) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Invalid workspace role"));
+        }
+        if (userDetails.getSystemRole() != SystemRole.ADMIN && requestedRole != Role.TEAM_MEMBER) {
+            return ResponseEntity.status(403).body(Map.of("message", "Managers can only add team members"));
+        }
 
         WorkspaceMember member = WorkspaceMember.builder()
                 .workspace(workspace)
                 .user(newUser)
-                .role(Role.valueOf(request.getOrDefault("role", "TEAM_MEMBER")))
+                .role(requestedRole)
                 .build();
         workspaceMemberRepository.save(member);
 
@@ -254,12 +258,7 @@ public class WorkspaceController {
             @RequestBody Map<String, String> request,
             @AuthenticationPrincipal UserDetailsImpl userDetails) {
         
-        WorkspaceMember currentUserMember = workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, userDetails.getId())
-                .orElse(null);
-        
-        if (userDetails.getSystemRole() != SystemRole.ADMIN
-                && (currentUserMember == null || (currentUserMember.getRole() != Role.OWNER
-                && currentUserMember.getRole() != Role.ADMIN && currentUserMember.getRole() != Role.MANAGER))) {
+        if (!canManageWorkspace(workspaceId, userDetails)) {
              return ResponseEntity.status(403).body(Map.of("message", "Require ADMIN or OWNER role"));
         }
 
@@ -277,25 +276,28 @@ public class WorkspaceController {
             @PathVariable UUID userId,
             @AuthenticationPrincipal UserDetailsImpl userDetails) {
         
-        WorkspaceMember currentUserMember = workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, userDetails.getId())
-                .orElse(null);
-        
-        if (userDetails.getSystemRole() != SystemRole.ADMIN
-                && (currentUserMember == null || (currentUserMember.getRole() != Role.OWNER
-                && currentUserMember.getRole() != Role.ADMIN && currentUserMember.getRole() != Role.MANAGER))) {
+        if (!canManageWorkspace(workspaceId, userDetails)) {
              return ResponseEntity.status(403).body(Map.of("message", "Require ADMIN or OWNER role"));
         }
 
         WorkspaceMember memberToRemove = workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Member not found"));
 
-        if (memberToRemove.getRole() == Role.OWNER
-                && userDetails.getSystemRole() != SystemRole.ADMIN
-                && (currentUserMember == null || currentUserMember.getRole() != Role.OWNER)) {
-             return ResponseEntity.status(403).body(Map.of("message", "Only OWNER can remove another OWNER"));
+        if (memberToRemove.getRole() != Role.TEAM_MEMBER
+                && userDetails.getSystemRole() != SystemRole.ADMIN) {
+             return ResponseEntity.status(403).body(Map.of("message", "Managers can only remove team members"));
         }
 
         workspaceMemberRepository.delete(memberToRemove);
         return ResponseEntity.ok(Map.of("message", "Member removed"));
+    }
+
+    private boolean canManageWorkspace(UUID workspaceId, UserDetailsImpl userDetails) {
+        if (userDetails.getSystemRole() == SystemRole.ADMIN) {
+            return true;
+        }
+        return workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, userDetails.getId())
+                .map(member -> member.getRole() == Role.MANAGER || member.getRole() == Role.OWNER)
+                .orElse(false);
     }
 }

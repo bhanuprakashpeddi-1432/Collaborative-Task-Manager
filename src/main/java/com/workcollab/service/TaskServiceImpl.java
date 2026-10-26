@@ -21,6 +21,8 @@ import com.workcollab.repository.TaskSpecification;
 import com.workcollab.repository.UserRepository;
 import com.workcollab.repository.ProjectRepository;
 import lombok.RequiredArgsConstructor;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Page;
@@ -45,6 +47,7 @@ public class TaskServiceImpl implements TaskService {
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final ObjectMapper objectMapper;
 
     @Override
     @Transactional
@@ -105,6 +108,7 @@ public class TaskServiceImpl implements TaskService {
             throw new TaskOptimisticLockingException("Task was modified concurrently", task.getVersion(), request.getVersion());
         }
 
+        publishFieldActivities(task, request, userId);
         if (request.getTitle() != null) task.setTitle(request.getTitle());
         if (request.getDescription() != null) task.setDescription(request.getDescription());
         if (request.getPriority() != null) task.setPriority(request.getPriority());
@@ -122,8 +126,7 @@ public class TaskServiceImpl implements TaskService {
 
         try {
             Task updatedTask = taskRepository.saveAndFlush(task);
-            publishActivity(updatedTask.getId(), userId, "TASK_UPDATED", "{}");
-            TaskDto dto = mapToDto(updatedTask);
+                TaskDto dto = mapToDto(updatedTask);
             publishCollaborationEvent(updatedTask, CollaborationEventType.TASK_UPDATED, dto, userId);
             return dto;
         } catch (OptimisticLockingFailureException e) {
@@ -236,6 +239,38 @@ public class TaskServiceImpl implements TaskService {
                 .actionType(action)
                 .detailsJson(jsonDetails)
                 .build()));
+    }
+
+    private void publishFieldActivities(Task task, TaskUpdateRequest request, UUID userId) {
+        if (request.getDescription() != null && !Objects.equals(request.getDescription(), task.getDescription())) {
+            publishActivity(task.getId(), userId, "DESCRIPTION_CHANGED", details("description", request.getDescription()));
+        }
+        if (request.getStatus() != null && !Objects.equals(request.getStatus(), task.getStatus())) {
+            publishActivity(task.getId(), userId, "STATUS_CHANGED", details("status", request.getStatus()));
+        }
+        if (request.getPriority() != null && !Objects.equals(request.getPriority(), task.getPriority())) {
+            publishActivity(task.getId(), userId, "PRIORITY_CHANGED", details("priority", request.getPriority()));
+        }
+        boolean genericFieldChanged =
+                (request.getTitle() != null && !Objects.equals(request.getTitle(), task.getTitle()))
+                || (request.getAssignedToId() != null
+                    && !Objects.equals(request.getAssignedToId(),
+                    task.getAssignedTo() != null ? task.getAssignedTo().getId() : null))
+                || (request.getDueDate() != null && !Objects.equals(request.getDueDate(), task.getDueDate()))
+                || (request.getEstimatedHours() != null && !Objects.equals(request.getEstimatedHours(), task.getEstimatedHours()))
+                || (request.getActualHours() != null && !Objects.equals(request.getActualHours(), task.getActualHours()))
+                || (request.getProgress() != null && !Objects.equals(request.getProgress(), task.getProgress()));
+        if (genericFieldChanged) {
+            publishActivity(task.getId(), userId, "TASK_UPDATED", "{}");
+        }
+    }
+
+    private String details(String field, Object value) {
+        try {
+            return objectMapper.writeValueAsString(Map.of("field", field, "value", value));
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("Unable to record task activity", exception);
+        }
     }
 
     private void publishCollaborationEvent(Task task, CollaborationEventType eventType,
