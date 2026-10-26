@@ -1,169 +1,349 @@
-# WorkCollab — Collaborative Task Management
+# WorkCollab
 
-WorkCollab is an enterprise-grade collaborative task management application designed for real-time team coordination. It features a Spring Boot backend and a React frontend, with WebSocket-powered live updates, optimistic locking for concurrent modifications, and Redis Pub/Sub support.
+WorkCollab is a role-based collaborative task management application. It combines a Spring Boot REST API with a React/Vite client for workspace, project, Kanban task, reporting, comments, presence, and task audit-history workflows.
 
-## 🚀 Features
+The repository is suitable for local development and demonstration. The Docker Compose setup provides a production-like local stack, but a real production deployment still requires organization-specific secret management, HTTPS, restricted origins, backups, monitoring, and operational policies.
 
-- **Real-Time Collaboration**: Live updates across all connected clients via WebSocket (STOMP) backed by a Redis Pub/Sub cluster.
-- **Concurrent Editing Protection**: Optimistic locking ensures data integrity when multiple users edit the same task simultaneously.
-- **JWT-Based Security**: Secure authentication and Role-Based Access Control (RBAC) down to the workspace level.
-- **Role-Based Workspace Management**: Administrators create workspaces and assign each workspace to a manager.
-- **Project and Task Management**: Assigned managers create projects, initialize Kanban columns, create tasks, assign tasks to team members, and manage task priorities.
-- **Personal Task Views**: Managers can view workspace tasks; team members see only tasks assigned to them.
-- **Task Activity & Audit Trail**: Each task records a chronological, access-controlled history of status, description, priority, creation, movement, and other changes with the acting user and timestamp.
-- **Project Reports**: Project-scoped reports show completion, progress, status, priority, overdue, and time-tracking metrics.
-- **Production-Ready Docker Stack**: Fully containerized with multi-stage Dockerfiles, NGINX reverse proxy, and Docker Compose orchestration.
-- **Integration Testing Infrastructure**: Testcontainers-backed integration tests cover task lifecycle operations and optimistic-locking behavior against real PostgreSQL and Redis instances.
+## What the application provides
 
-## 🛠️ Tech Stack
+- Workspace-based access control for administrators, managers, and team members.
+- Project and Kanban task management with automatic default columns.
+- Task assignment, priorities, due dates, progress, and time tracking.
+- Optimistic locking to prevent stale concurrent task edits from silently overwriting changes.
+- Task comments and a chronological, access-controlled audit history.
+- WebSocket/STOMP collaboration events with Redis support for message distribution.
+- Project-scoped reports for completion, progress, status, priority, overdue work, and time tracking.
+- Workspace Settings for names and member management, subject to role permissions.
+- JWT authentication with login, refresh, logout, and registration endpoints.
 
-**Backend**:
-- Java 21 & Spring Boot 3.3.0
-- Spring Security (JWT) & Spring WebSockets
-- Spring Data JPA / Hibernate (Optimistic Locking)
+## Roles and permissions
+
+### Global administrator
+
+An administrator can:
+
+- View all workspaces, projects, tasks, reports, and workspace members.
+- Create a workspace and assign it to a manager.
+- Rename workspaces and manage workspace memberships.
+- View project dashboards and project data.
+
+Project creation, editing, and archiving are restricted to the assigned workspace manager. The administrator can view project data but is not granted project-write operations by the project API.
+
+### Manager
+
+A manager can access only workspaces explicitly assigned to that manager. In an assigned workspace, a manager can:
+
+- Create, edit, and archive projects.
+- Create tasks and assign them to workspace team members.
+- Set task priority and manage task status, description, progress, dates, and time values.
+- Rename the workspace.
+- Add or remove members with the `TEAM_MEMBER` workspace role.
+
+Managers cannot add or remove other managers through the current Settings UI.
+
+### Team member
+
+A team member can access only assigned workspaces and receives task results filtered to tasks assigned to that account. Settings membership data is read-only for team members.
+
+### Workspace roles
+
+Workspace memberships are separate from global system roles. The application uses roles such as `OWNER`, `ADMIN`, `MANAGER`, `TEAM_MEMBER`, `MEMBER`, and `VIEWER` where applicable. Authorization is enforced by workspace membership and, for administrators, the global `ADMIN` role.
+
+## Main workflow
+
+1. Sign in as an administrator.
+2. Create a workspace and select a manager from the manager list.
+3. Sign in as that manager.
+4. Create a project in the assigned workspace.
+5. The project is initialized with `To Do`, `In Progress`, and `Done` task lists.
+6. Create tasks, set priorities, and assign them to workspace team members.
+7. Move tasks across Kanban lists or edit them in the task details modal.
+8. Open a task to view comments and its audit history.
+9. Open Reports to review project-level metrics.
+10. Use Settings to rename the workspace or manage permitted team-member memberships.
+
+## Technology
+
+### Backend
+
+- Java 21
+- Spring Boot 3.3.0
+- Spring MVC and Bean Validation
+- Spring Security with JWT
+- Spring Data JPA and Hibernate
 - PostgreSQL 16
-- Redis 7 (Pub/Sub for WebSocket scaling)
-- JUnit 5 & Testcontainers (Integration Testing)
+- Redis 7
+- WebSocket/STOMP
+- Maven Wrapper
 
-**Frontend**:
-- React 18 & TypeScript
-- Vite (Build Tool)
-- NGINX (Production Reverse Proxy)
+### Frontend
 
----
+- React 19
+- TypeScript 6
+- Vite 8
+- TanStack React Query
+- Zustand
+- Axios
+- Tailwind CSS
+- `@hello-pangea/dnd` for Kanban drag and drop
+- SockJS and STOMP client for collaboration updates
 
-## 💻 Prerequisites
+### Testing
 
-Before running the project locally, ensure you have the following installed:
-- [Java 21 JDK](https://adoptium.net/)
-- [Node.js 22](https://nodejs.org/) & npm
-- [Docker & Docker Compose](https://www.docker.com/) (Required for the containerized stack; optional if PostgreSQL and Redis are installed locally)
+- JUnit 5
+- Spring Boot test support
+- Testcontainers
+- PostgreSQL and Redis containers for integration tests
 
----
+## Repository layout
 
-## 🏃 Local Development Setup
+```text
+.
+├── frontend/
+│   ├── src/
+│   │   ├── components/       # Board, task modal, reports, presence UI
+│   │   ├── hooks/            # React Query, drag, WebSocket, presence hooks
+│   │   ├── lib/              # Axios API client
+│   │   ├── pages/            # Workspace page and application views
+│   │   └── store/            # Authentication state
+│   ├── Dockerfile
+│   ├── nginx.conf
+│   └── package.json
+├── src/main/java/com/workcollab/
+│   ├── config/               # Startup seed and application configuration
+│   ├── controller/           # REST endpoints
+│   ├── dto/                  # Request and response models
+│   ├── entity/               # JPA entities
+│   ├── repository/           # Spring Data repositories and specifications
+│   ├── security/             # JWT and workspace authorization
+│   └── service/              # Application services
+├── src/main/resources/
+│   ├── application.yml       # Local defaults
+│   └── schema.sql            # PostgreSQL schema reference/init script
+├── src/test/                 # Testcontainers integration tests
+├── Dockerfile                # Backend image
+├── docker-compose.yml        # PostgreSQL, Redis, backend, and frontend
+├── .env.example              # Docker environment template
+└── pom.xml
+```
 
-To run the application locally for active development, you'll run the backend and frontend separately.
+## Prerequisites
 
-### 1. Start Infrastructure (Databases)
-The backend requires PostgreSQL on port `5432` and Redis on port `6379`. You can quickly spin these up using Docker:
-```bash
-docker run -d --name workcollab-postgres -p 5432:5432 -e POSTGRES_DB=workcollab -e POSTGRES_USER=workcollab -e POSTGRES_PASSWORD=changeme postgres:16-alpine
+For local development:
+
+- Java 21 JDK
+- Node.js and npm
+- PostgreSQL 16
+- Redis 7
+
+For Docker Compose and integration tests:
+
+- Docker Desktop with a working Docker daemon
+- Docker Compose v2
+
+## Local development
+
+### 1. Start PostgreSQL and Redis
+
+The default local configuration expects:
+
+- PostgreSQL: `localhost:5432`
+- Database: `workcollab`
+- Database user: `workcollab`
+- Database password: `changeme`
+- Redis: `localhost:6379`
+
+You can start both dependencies with Docker:
+
+```powershell
+docker run -d --name workcollab-postgres -p 5432:5432 `
+  -e POSTGRES_DB=workcollab `
+  -e POSTGRES_USER=workcollab `
+  -e POSTGRES_PASSWORD=changeme `
+  postgres:16-alpine
+
 docker run -d --name workcollab-redis -p 6379:6379 redis:7-alpine
 ```
 
-### 2. Start the Backend
-The backend runs on port `8081` by default. The application configuration is in `src/main/resources/application.yml`; database values can be overridden with `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USERNAME`, and `DB_PASSWORD`.
+If these container names already exist, start them with:
 
-On Windows, use UTC to avoid PostgreSQL timezone errors from an `Asia/Calcutta` Java timezone:
+```powershell
+docker start workcollab-postgres workcollab-redis
+```
+
+### 2. Start the backend
+
+From the repository root:
+
 ```powershell
 $env:JAVA_TOOL_OPTIONS="-Duser.timezone=UTC"
+.\mvnw.cmd spring-boot:run
 ```
 
-```bash
-# Using the included Maven wrapper
-./mvnw spring-boot:run
-```
-*Note: On Windows, use `mvnw.cmd spring-boot:run`.*
+The backend listens on `http://localhost:8081`.
 
-Health check:
+The UTC setting is useful on Windows systems where the JVM reports the legacy `Asia/Calcutta` timezone and PostgreSQL rejects it. It is not required on every machine.
+
+Backend health:
+
 ```text
 http://localhost:8081/actuator/health
 ```
 
-### 3. Start the Frontend
-The frontend uses Vite and runs on a local dev server (typically port `5173`).
-```bash
-cd frontend
+The local configuration uses `spring.jpa.hibernate.ddl-auto=update` and runs the supplied `schema.sql`. This is convenient for development; use managed migrations and an explicit production database policy before deploying to production.
+
+### 3. Start the frontend
+
+In a second terminal:
+
+```powershell
+Set-Location .\frontend
 npm install
 npm run dev
 ```
 
-The application will now be accessible at the URL provided by the Vite dev server (e.g., `http://localhost:5173`).
+Open the Vite URL, normally:
 
-The Vite development server proxies API and WebSocket requests to the backend on port `8081`.
+```text
+http://localhost:5173
+```
 
-### Demo accounts
+The Vite development server proxies `/api` and `/ws` to the backend on port `8081`.
 
-The startup seeder creates or repairs these accounts with the password `admin123`:
+## Demo accounts
 
-| Account | Email | Role |
-|---|---|---|
-| Administrator | `admin@demo.com` | Global `ADMIN` |
-| Manager 1 | `manager1@demo.com` | `MANAGER` |
-| Manager 2 | `manager2@demo.com` | `MANAGER` |
-| Team member | `mem1@demo.com` | `TEAM_MEMBER` |
+The startup seeder creates or repairs the following local demonstration accounts. These credentials are for development only:
 
-### Access rules
+| Account | Email | Password | Global role |
+|---|---|---|---|
+| Administrator | `admin@demo.com` | `admin123` | `ADMIN` |
+| Manager 1 | `manager1@demo.com` | `admin123` | `MANAGER` |
+| Manager 2 | `manager2@demo.com` | `admin123` | `MANAGER` |
+| Team member | `mem1@demo.com` | `admin123` | `TEAM_MEMBER` |
 
-- **Administrators** can view every workspace, project, task, member list, and report. They can create workspaces and assign them to managers, but cannot create, edit, or archive projects.
-- **Managers** can access only workspaces assigned to them. They can create, edit, and archive projects in those workspaces, create tasks, set priorities, and assign tasks to workspace team members.
-- **Team members** can access only their assigned workspaces and see tasks assigned to their own account.
-- Every new project receives `To Do`, `In Progress`, and `Done` columns automatically.
+Do not use these passwords or the checked-in development JWT defaults in a production environment.
 
----
+## Important API areas
 
-## 🐳 Dockerized Production Setup
+The backend is rooted at `/api`.
 
-For a full production-like environment, you can run the entire stack (Frontend, Backend, PostgreSQL, Redis) using Docker Compose.
+| Area | Representative endpoints |
+|---|---|
+| Authentication | `POST /api/auth/login`, `/refresh`, `/logout`, `/register` |
+| Workspaces | `GET /api/workspaces`, `POST /api/workspaces` |
+| Managers | `GET /api/admin/managers` |
+| Workspace members | `GET/POST /api/workspaces/{workspaceId}/members` |
+| Workspace settings | `PUT /api/workspaces/{workspaceId}` |
+| Projects | `GET /api/workspaces/{workspaceId}/projects`, `PUT/DELETE /api/workspaces/{workspaceId}/projects/{projectId}` |
+| Project details | `GET /api/projects/{projectId}` |
+| Tasks | `GET/POST /api/projects/{projectId}/tasks` |
+| Task changes | `PUT/DELETE /api/projects/{projectId}/tasks/{taskId}` |
+| Task movement | `PATCH /api/projects/{projectId}/tasks/{taskId}/move` |
+| Comments | `GET/POST /api/tasks/{taskId}/comments` |
+| Audit history | `GET /api/tasks/{taskId}/activity` |
 
-1. **Configure Environment Variables**:
-   Copy the example environment file and configure any necessary secrets:
-   ```bash
-   cp .env.example .env
+Task endpoints require a `workspaceId` query parameter where indicated by the frontend. The authenticated JWT identifies the current user; workspace access is checked on the server.
+
+## Docker Compose
+
+The Compose stack starts PostgreSQL, Redis, the Spring Boot backend, and the NGINX-served frontend.
+
+1. Copy the environment template:
+
+   ```powershell
+   Copy-Item .env.example .env
    ```
-   *(Ensure you update the `JWT_SECRET` and `DB_PASSWORD` in the `.env` file for real production deployments).*
 
-2. **Build and Run the Stack**:
-   ```bash
+2. Replace `DB_PASSWORD`, `JWT_SECRET`, and `WEBSOCKET_ALLOWED_ORIGINS` with environment-appropriate values.
+
+3. Build and start:
+
+   ```powershell
    docker compose up -d --build
    ```
 
-3. **Access the Application**:
-   Once the containers are healthy, the NGINX reverse proxy will serve the application at:
-   **http://localhost**
+4. Open:
 
-4. **View Logs or Stop**:
-   ```bash
-   # View logs of all services
-   docker compose logs -f
-
-   # Stop the stack
-   docker compose down
+   ```text
+   http://localhost
    ```
 
----
+Useful commands:
 
-## 🧪 Testing
-
-The backend includes a comprehensive integration test suite that automatically spins up real PostgreSQL and Redis containers using **Testcontainers**. 
-
-To run the tests (Docker must be running):
-```bash
-./mvnw verify
+```powershell
+docker compose ps
+docker compose logs -f backend
+docker compose logs -f frontend
+docker compose down
 ```
 
-On Windows:
+The Compose file publishes PostgreSQL on `5432`, Redis on `6379`, the backend on `8081`, and the frontend on port `80`. Named volumes preserve PostgreSQL and Redis data when containers are recreated.
+
+## Testing and verification
+
+Run the backend package build without integration tests:
+
+```powershell
+.\mvnw.cmd -DskipTests package
+```
+
+Run the frontend type-check and production build:
+
+```powershell
+Set-Location .\frontend
+npm run build
+```
+
+Run backend tests:
+
 ```powershell
 .\mvnw.cmd verify
 ```
 
-Integration tests require a working Docker environment for Testcontainers.
+The integration tests use Testcontainers and therefore require Docker. The current integration coverage includes:
 
----
+- Task creation and persistence.
+- Paginated task retrieval.
+- Task updates and version increments.
+- Task movement between lists.
+- Task deletion.
+- Full task lifecycle flow.
+- Stale-version conflicts.
+- Concurrent updates and moves, verifying optimistic locking.
 
-## 📁 Project Structure
+The repository does not currently claim complete end-to-end coverage for every role, settings, reporting, WebSocket, or audit-history scenario. Those areas should be covered with additional tests before treating the project as production-certified.
 
-```
-WorkCollab/
-├── frontend/            # React + Vite frontend source code
-│   ├── src/             # UI Components, Hooks, API services
-│   ├── Dockerfile       # Multi-stage NGINX image
-│   └── nginx.conf       # Reverse proxy config for API & WebSockets
-├── src/                 # Spring Boot backend source code
-│   ├── main/java/...    # Controllers, Services, Security, Entities
-│   └── test/java/...    # Testcontainers integration tests
-├── Dockerfile           # Multi-stage JRE-alpine image for backend
-├── docker-compose.yml   # Production orchestration
-└── pom.xml              # Maven configuration
-```
+## Configuration
+
+Local defaults are defined in `src/main/resources/application.yml`. Docker Compose supplies container hostnames and environment overrides through the Docker Spring profile.
+
+Common environment variables:
+
+| Variable | Purpose |
+|---|---|
+| `DB_HOST` | PostgreSQL host |
+| `DB_PORT` | PostgreSQL port |
+| `DB_NAME` | Database name |
+| `DB_USERNAME` | Database user |
+| `DB_PASSWORD` | Database password |
+| `REDIS_HOST` | Redis host |
+| `REDIS_PORT` | Redis port |
+| `JWT_SECRET` | Base64 JWT signing secret |
+| `JWT_EXPIRATION_MS` | JWT lifetime in milliseconds |
+| `WEBSOCKET_ALLOWED_ORIGINS` | Allowed WebSocket origins |
+
+Use a strong, unique JWT secret with at least 256 bits of entropy. Never commit `.env` or production secrets.
+
+## Current operational considerations
+
+- The default development configuration exposes detailed actuator health information; review actuator exposure and authentication before production use.
+- WebSocket origins default to `*` in development and must be restricted in production.
+- The default JWT secret and demo passwords are development values and must be replaced.
+- `ddl-auto=update` is intended for local development, not controlled production schema migration.
+- Docker Compose is a single-host deployment definition, not a high-availability or autoscaling configuration.
+- Integration tests require Docker and were designed around PostgreSQL and Redis containers.
+- The frontend production build reports a bundle-size warning; the build still succeeds.
+
+## License
+
+No license file is currently included in this repository. Add a project license before distributing the code outside the intended organization.
