@@ -11,6 +11,7 @@ The repository is suitable for local development and demonstration. The Docker C
 - Task assignment, priorities, due dates, progress, and time tracking.
 - Optimistic locking to prevent stale concurrent task edits from silently overwriting changes.
 - Task comments and a chronological, access-controlled audit history.
+- An Inbox for direct messages with role-limited recipient selection.
 - WebSocket/STOMP collaboration events with Redis support for message distribution.
 - Project-scoped reports for completion, progress, status, priority, overdue work, and time tracking.
 - Workspace Settings for names and member management, subject to role permissions.
@@ -45,6 +46,14 @@ Managers cannot add or remove other managers through the current Settings UI.
 
 A team member can access only assigned workspaces and receives task results filtered to tasks assigned to that account. Settings membership data is read-only for team members.
 
+### Inbox messaging
+
+- Administrators can message any other registered user.
+- Managers can message global administrators and team members assigned to the manager's workspaces.
+- Recipients are calculated and checked by the backend; changing or bypassing the frontend cannot send a message to an unauthorized user.
+- Messages include a subject, content, sender, recipient, read state, and creation time.
+- Team members currently have the Inbox navigation available but do not have permitted recipients under the requested messaging rules.
+
 ### Workspace roles
 
 Workspace memberships are separate from global system roles. The application uses roles such as `OWNER`, `ADMIN`, `MANAGER`, `TEAM_MEMBER`, `MEMBER`, and `VIEWER` where applicable. Authorization is enforced by workspace membership and, for administrators, the global `ADMIN` role.
@@ -61,6 +70,7 @@ Workspace memberships are separate from global system roles. The application use
 8. Open a task to view comments and its audit history.
 9. Open Reports to review project-level metrics.
 10. Use Settings to rename the workspace or manage permitted team-member memberships.
+11. Use Inbox to send direct messages to recipients permitted by the signed-in user's role.
 
 ## Technology
 
@@ -192,6 +202,16 @@ http://localhost:8081/actuator/health
 
 The local configuration uses `spring.jpa.hibernate.ddl-auto=update` and runs the supplied `schema.sql`. This is convenient for development; use managed migrations and an explicit production database policy before deploying to production.
 
+After adding or updating the Inbox feature, restart the backend so Hibernate can create or update the `direct_messages` table:
+
+```powershell
+Ctrl+C
+$env:JAVA_TOOL_OPTIONS="-Duser.timezone=UTC"
+.\mvnw.cmd spring-boot:run
+```
+
+The timezone setting is a Windows development workaround for environments where the JVM reports the legacy `Asia/Calcutta` timezone to PostgreSQL. If the application starts without that error, the backend can be run with `.\mvnw.cmd spring-boot:run` alone.
+
 ### 3. Start the frontend
 
 In a second terminal:
@@ -241,8 +261,20 @@ The backend is rooted at `/api`.
 | Task movement | `PATCH /api/projects/{projectId}/tasks/{taskId}/move` |
 | Comments | `GET/POST /api/tasks/{taskId}/comments` |
 | Audit history | `GET /api/tasks/{taskId}/activity` |
+| Inbox | `GET /api/inbox`, `GET /api/inbox/contacts`, `POST /api/inbox` |
+| Mark message read | `PATCH /api/inbox/{messageId}/read` |
 
 Task endpoints require a `workspaceId` query parameter where indicated by the frontend. The authenticated JWT identifies the current user; workspace access is checked on the server.
+
+### Inbox API behavior
+
+`GET /api/inbox/contacts` returns the allowed recipients for the authenticated user:
+
+- `ADMIN`: all other registered users.
+- `MANAGER`: all administrators and team members belonging to the manager's assigned workspaces.
+- `TEAM_MEMBER`: no recipients under the current messaging policy.
+
+`POST /api/inbox` accepts a recipient ID, subject, and content. The backend checks the recipient permission again before saving the message; the frontend recipient list is not a security boundary. `GET /api/inbox` returns messages sent or received by the current user, and `PATCH /api/inbox/{messageId}/read` can be used only by the message recipient.
 
 ## Docker Compose
 

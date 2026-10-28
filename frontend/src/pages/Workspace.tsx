@@ -7,6 +7,7 @@ import { KanbanBoard } from '@/components/board/KanbanBoard';
 import { TaskDetailsModal } from '@/components/board/TaskDetailsModal';
 import { ReportsDashboard } from '@/components/board/ReportsDashboard';
 import { PresenceAvatars } from '@/components/board/PresenceAvatars';
+import { Inbox as InboxPanel } from '@/components/Inbox';
 import { useBoardWebSocket } from '@/hooks/useBoardWebSocket';
 import { LayoutDashboard, LogOut, Loader2, Settings, Briefcase, Inbox, BarChart2, CheckSquare, Plus } from 'lucide-react';
 import { useAuthStore } from '@/store/useAuthStore';
@@ -217,6 +218,7 @@ export function Workspace() {
   const { activeUsers, sendHeartbeat } = useBoardWebSocket(workspaceId ?? '', projectId ?? '');
 
   const handleLogout = () => {
+    queryClient.clear();
     logout();
     navigate('/login');
   };
@@ -509,7 +511,13 @@ export function Workspace() {
               </button>
             </form>
           )}
-          {activeTab === 'projects' ? (
+          {activeTab === 'inbox' ? (
+            <div className="flex h-full flex-col overflow-hidden p-6">
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <InboxPanel />
+              </div>
+            </div>
+          ) : activeTab === 'projects' ? (
             projectInfo ? (
               <KanbanBoard 
                 workspaceId={workspaceId} 
@@ -611,6 +619,12 @@ export function Workspace() {
                 Select a project first to view analytics.
               </div>
             )
+          ) : activeTab === 'inbox' ? (
+            <div className="flex h-full flex-col overflow-hidden p-6">
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <InboxPanel />
+              </div>
+            </div>
           ) : activeTab === 'settings' ? (
             <div className="h-full overflow-y-auto p-6">
               <div className="mx-auto max-w-4xl space-y-6">

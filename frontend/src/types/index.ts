@@ -31,6 +31,27 @@ export interface TaskActivity {
   createdAt: string;
 }
 
+export interface InboxContact {
+  id: string;
+  fullName: string;
+  email: string;
+  systemRole: 'ADMIN' | 'MANAGER' | 'TEAM_MEMBER';
+}
+
+export interface DirectMessage {
+  id: string;
+  senderId: string;
+  senderName: string;
+  recipientId: string;
+  recipientName: string;
+  otherUserId: string;
+  otherUserName: string;
+  subject: string;
+  content: string;
+  read: boolean;
+  createdAt: string;
+}
+
 export interface TaskList {
   id: string;
   boardId: string;
